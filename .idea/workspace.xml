@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="NONE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="6ea841fb-093c-43cf-91b3-2767cdcd29d2" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/flutter/givelocally_app/lib/services/razorpay_service.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/firebase-apps/givelocally/functions/src/payments/createPaymentOrder.ts" beforeDir="false" afterPath="$PROJECT_DIR$/firebase-apps/givelocally/functions/src/payments/createPaymentOrder.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/flutter/givelocally_app/givelocally_app" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/flutter/givelocally_app/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/flutter/givelocally_app/lib/main.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/flutter/givelocally_app/lib/screens/home/donation_detail_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/flutter/givelocally_app/lib/screens/home/donation_detail_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/flutter/givelocally_app/lib/screens/home/home_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/flutter/givelocally_app/lib/screens/home/home_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/flutter/givelocally_app/lib/screens/home/reserve_item_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/flutter/givelocally_app/lib/screens/home/reserve_item_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/flutter/givelocally_app/lib/screens/profile/my_donations_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/flutter/givelocally_app/lib/screens/profile/my_donations_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/flutter/givelocally_app/macos/Flutter/GeneratedPluginRegistrant.swift" beforeDir="false" afterPath="$PROJECT_DIR$/flutter/givelocally_app/macos/Flutter/GeneratedPluginRegistrant.swift" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/flutter/givelocally_app/pubspec.lock" beforeDir="false" afterPath="$PROJECT_DIR$/flutter/givelocally_app/pubspec.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/flutter/givelocally_app/pubspec.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/flutter/givelocally_app/pubspec.yaml" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/flutter/givelocally_app" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;history&quot;: [
+    {
+      &quot;state&quot;: &quot;OPEN&quot;,
+      &quot;assignee&quot;: &quot;swatiparge&quot;,
+      &quot;author&quot;: &quot;saiSunkari19&quot;
+    }
+  ],
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;swatiparge&quot;,
+    &quot;author&quot;: &quot;saiSunkari19&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/saiSunkari19/mobile-apps.git&quot;,
+    &quot;accountId&quot;: &quot;90e39afb-fb15-458a-a7b5-0aa6920c5e0f&quot;
+  }
+}</component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="ProjectErrors" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1
+}</component>
+  <component name="ProjectId" id="39eqJF4BNDpOp8x71dV3HlYKkq0" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Logcat.SavePath": "/Users/apple/Downloads",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "SHELLCHECK.PATH": "/Users/apple/Library/Application Support/Google/AndroidStudio2025.2.3/plugins/Shell Script/shellcheck",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "com.google.services.firebase.aqiPopupShown": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "git-widget-placeholder": "main",
+    "io.flutter.project.isFirstOpen": "true",
+    "kotlin-language-version-configured": "true",
+    "settings.editor.selected.configurable": "com.android.studio.ml.templates",
+    "show.migrate.to.gradle.popup": "false"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/flutter/givelocally_app/lib/screens" />
+      <recent name="$PROJECT_DIR$/flutter/givelocally_app/lib/screens/auth" />
+    </key>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="6ea841fb-093c-43cf-91b3-2767cdcd29d2" name="Changes" comment="" />
+      <created>1771066812141</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1771066812141</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="Dart">
+          <url>file://$PROJECT_DIR$/flutter/givelocally_app/lib/services/razorpay_service.dart</url>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="Dart">
+          <url>file://$PROJECT_DIR$/flutter/givelocally_app/lib/main.dart</url>
+          <line>67</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>
