@@ -3,8 +3,13 @@ import 'package:flutter/material.dart';
 
 class UrgentBloodRequestCard extends StatelessWidget {
   final Map<String, dynamic> donation;
+  final bool isPostedByMe;
 
-  const UrgentBloodRequestCard({super.key, required this.donation});
+  const UrgentBloodRequestCard({
+    super.key,
+    required this.donation,
+    this.isPostedByMe = false,
+  });
 
   String _getExpiryLabel(Map<String, dynamic>? pickupWindow) {
     if (pickupWindow == null || pickupWindow['end_date'] == null)
@@ -31,7 +36,10 @@ class UrgentBloodRequestCard extends StatelessWidget {
     final isCritical = urgency == 'critical';
     final distance =
         donation['distance'] ?? '0.5km'; // Usually calculated by geofire logic
-    final donorName = donation['donorName'] ?? 'Donor';
+
+    // Updated to use 'username' as requested, with fallbacks
+    final userName = donation['username'] ?? donation['userName'] ?? donation['donorName'] ?? donation['name'] ?? "Donor";
+
     final pickupWindow = donation['pickup_window'] as Map<String, dynamic>?;
 
     String? imageUrl;
@@ -100,6 +108,24 @@ class UrgentBloodRequestCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (isPostedByMe) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade600,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    "POSTED BY YOU",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
               const Spacer(),
               Icon(
                 Icons.timer_outlined,
@@ -153,30 +179,34 @@ class UrgentBloodRequestCard extends StatelessWidget {
                 child: const Icon(Icons.person, size: 14, color: Colors.white),
               ),
               const SizedBox(width: 8),
-              Text("Req. by $donorName", style: const TextStyle(fontSize: 13)),
-              const Spacer(),
-              ElevatedButton(
-                onPressed: () {
-                  // Navigate to WF-16: Donation Detail Screen
-                  Navigator.pushNamed(
-                    context,
-                    '/donation-detail',
-                    arguments: donation,
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isCritical
-                      ? Colors.red.shade600
-                      : Colors.blue.shade600,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text("Donate"),
+              Text(
+                isPostedByMe ? "Requested by You" : "Req. by $userName",
+                style: const TextStyle(fontSize: 13),
               ),
+              const Spacer(),
+              if (!isPostedByMe)
+                ElevatedButton(
+                  onPressed: () {
+                    // Navigate to WF-16: Donation Detail Screen
+                    Navigator.pushNamed(
+                      context,
+                      '/donation-detail',
+                      arguments: donation,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isCritical
+                        ? Colors.red.shade600
+                        : Colors.blue.shade600,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text("Donate"),
+                ),
             ],
           ),
         ],

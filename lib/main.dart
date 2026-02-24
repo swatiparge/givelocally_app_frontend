@@ -88,9 +88,13 @@ import 'navigation/route_observer.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // await Firebase.initializeApp(
+  //   options: DefaultFirebaseOptions.currentPlatform,
+  // );
+
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp();
+  }
 
   runApp(const MyApp());
 }

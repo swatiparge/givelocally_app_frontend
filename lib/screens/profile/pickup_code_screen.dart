@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Pickup Code Display Screen
-/// Shows 4-digit pickup code after successful payment
 class PickupCodeScreen extends StatefulWidget {
   final Map<String, dynamic> transaction;
 
@@ -37,7 +35,7 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
         final donorData = doc.data();
         setState(() {
           _donorPhone = donorData?['phone'];
-          // Rating could be fetched if available in user document
+          // You could also fetch rating here if it exists in the user doc
         });
       }
     } catch (e) {
@@ -107,7 +105,7 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
                     child: const Icon(Icons.check, color: Color(0xFF4CAF50), size: 32),
                   ),
                   const SizedBox(height: 16),
-                  const Text("Payment Successful", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text("Payment Successful h", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Text("You can now pick up your item", style: TextStyle(color: Colors.grey.shade600)),
                 ],

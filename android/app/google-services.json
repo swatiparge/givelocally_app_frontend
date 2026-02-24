@@ -3,14 +3,14 @@
     "project_number": "8929213204",
     "firebase_url": "https://givelocally-dev-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "givelocally-dev",
-    "storage_bucket": "givelocally-dev.appspot.com"
+    "storage_bucket": "givelocally-dev.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:8929213204:android:def4360a6374d72e9fe001",
+        "mobilesdk_app_id": "1:8929213204:android:58a5903404739da49fe001",
         "android_client_info": {
-          "package_name": "com.example.givelocally_app"
+          "package_name": "com.givelocally.app"
         }
       },
       "oauth_client": [],

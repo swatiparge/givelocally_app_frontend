@@ -54,6 +54,9 @@ dependencies:
   razorpay_auth_capture:
     path: packages/razorpay_plugin
 
+  google_maps_plugin:
+    path: packages/google_maps_plugin
+
 
 
   # # ============================================

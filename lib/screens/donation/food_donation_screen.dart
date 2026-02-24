@@ -542,8 +542,13 @@ class _FoodDonationScreenState extends State<FoodDonationScreen> {
 
   void _showSuccessDialog() {
     Navigator.push(context, MaterialPageRoute(builder: (context) => DonationSuccessView(
-      onPostAnother: () => Navigator.of(context).popUntil((route) => route.isFirst),
-      onViewDonation: () => Navigator.of(context).popUntil((route) => route.isFirst),
+      onPostAnother: () => Navigator.of(context).pop(),
+      onViewDonation: () {
+        Navigator.of(context).pop();
+        // TODO: Replace with the actual route for the user's donations list.
+        // For example:
+        // Navigator.of(context).pushNamed('/my-donations');
+      },
     )));
   }
 }
