@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
+import '../../models/user_model.dart';
 import '../auth/profile_setup_screen.dart';
 import 'my_donations_screen.dart';
 import 'received_items_screen.dart';
@@ -24,6 +26,13 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+  }
+
+  String _getJoinedDate(UserModel? user) {
+    if (user?.createdAt != null) {
+      return DateFormat("MMM ''yy").format(user!.createdAt);
+    }
+    return "Jan '24"; // Fallback
   }
 
   @override
@@ -65,7 +74,9 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildProfileHeader(dynamic user) {
+  Widget _buildProfileHeader(UserModel? user) {
+    final joinedDate = _getJoinedDate(user);
+
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -113,7 +124,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
             ],
           ),
           const SizedBox(height: 4),
-          Text("${user?.area ?? 'Location'} • Joined Jan '24", style: const TextStyle(color: Colors.grey, fontSize: 14)),
+          Text("${user?.area ?? 'Location'} • Joined $joinedDate", style: const TextStyle(color: Colors.grey, fontSize: 14)),
           const SizedBox(height: 24),
           _buildEditButton(),
         ],
@@ -144,12 +155,12 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildStatsGrid(dynamic user) {
+  Widget _buildStatsGrid(UserModel? user) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          _statCard("⭐ 4.8", "RATING"),
+          _statCard("⭐ ${user?.averageRating.toStringAsFixed(1) ?? '0.0'}", "RATING"),
           const SizedBox(width: 12),
           _statCard("🌱 ${user?.karmaPoints ?? 0}", "KARMA", iconColor: const Color(0xFF66BB6A)),
         ],
@@ -290,7 +301,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       case 0:
         return _buildMyDonationsPreview(uid);
       case 1:
-        return _buildEmptyReceivedView();
+        return _buildReceivedItemsPreview(uid);
       case 2:
         return _buildEmptyRequestsView();
       default:
@@ -327,6 +338,115 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
             Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 14)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildReceivedItemsPreview(String userId) {
+    return FutureBuilder<List<dynamic>>(
+      future: _apiService.getReceivedItems("completed"),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(32.0),
+            child: Center(child: CircularProgressIndicator(color: Color(0xFF66BB6A))),
+          );
+        }
+
+        final items = snapshot.data ?? [];
+        if (items.isEmpty) {
+          return _buildEmptyReceivedView();
+        }
+
+        final displayItems = items.take(2).toList();
+
+        return Column(
+          children: [
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              itemCount: displayItems.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, i) {
+                final data = displayItems[i] as Map<String, dynamic>;
+                return _buildTransactionItemCard(data);
+              },
+            ),
+            if (items.length > 2)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ReceivedItemsScreen()),
+                      );
+                    },
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Text("View All Received Items", style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold)),
+                        SizedBox(width: 4),
+                        Icon(Icons.arrow_forward, size: 16, color: Color(0xFF2E7D32)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTransactionItemCard(Map<String, dynamic> data) {
+    final title = data['donationTitle'] ?? data['title'] ?? "Item";
+    final donorName = data['donorName'] ?? "Donor";
+    final imageUrl = data['donationImage'] ?? data['image'] ?? "";
+    final category = (data['category'] ?? '').toString().toLowerCase();
+    final isBlood = category.contains('blood');
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 4))
+        ],
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 68, height: 68,
+              color: isBlood ? const Color(0xFFFFEBEE) : const Color(0xFFF8F9FA),
+              child: imageUrl.isNotEmpty && imageUrl.startsWith('http')
+                  ? Image.network(
+                      imageUrl, 
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => _buildPlaceholder(category, isBlood),
+                    )
+                  : _buildPlaceholder(category, isBlood),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1C1E))),
+                const SizedBox(height: 4),
+                Text("Gifted by $donorName", style: const TextStyle(fontSize: 13, color: Colors.grey)),
+              ],
+            ),
+          ),
+          const Icon(Icons.check_circle, color: Color(0xFF66BB6A), size: 20),
+        ],
       ),
     );
   }

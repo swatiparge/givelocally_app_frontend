@@ -4,7 +4,7 @@ import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
 import '../../widgets/ListView/urgent_blood_request_card.dart';
 
-class ViewAllDonationsScreen extends StatelessWidget {
+class ViewAllDonationsScreen extends StatefulWidget {
   final String title;
   final String category;
   final List<String>? categories;
@@ -21,11 +21,41 @@ class ViewAllDonationsScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final ApiService apiService = ApiService();
-    final String? categoryOrNull = category.trim().isEmpty
+  State<ViewAllDonationsScreen> createState() => _ViewAllDonationsScreenState();
+}
+
+class _ViewAllDonationsScreenState extends State<ViewAllDonationsScreen> {
+  late Future<List<dynamic>> _fetchFuture;
+  final ApiService _apiService = ApiService();
+
+  @override
+  void initState() {
+    super.initState();
+    _initFetch();
+  }
+
+  void _initFetch() {
+    final String? categoryOrNull = widget.category.trim().isEmpty
         ? null
-        : category.trim();
+        : widget.category.trim();
+
+    _fetchFuture = widget.categories != null
+        ? _apiService.fetchMultipleCategories(
+            lat: widget.lat,
+            lng: widget.lng,
+            categories: widget.categories!,
+            radiusKm: 50,
+          )
+        : _apiService.fetchNearbyDonations(
+            lat: widget.lat,
+            lng: widget.lng,
+            category: categoryOrNull,
+            radiusKm: 50,
+          );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context, listen: false);
     final currentUserId = authService.firebaseUser?.uid;
 
@@ -39,7 +69,7 @@ class ViewAllDonationsScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          title,
+          widget.title,
           style: const TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.bold,
@@ -57,18 +87,7 @@ class ViewAllDonationsScreen extends StatelessWidget {
           _buildFilterBar(),
           Expanded(
             child: FutureBuilder<List<dynamic>>(
-              future: categories != null
-                  ? apiService.fetchMultipleCategories(
-                      lat: lat,
-                      lng: lng,
-                      categories: categories!,
-                    )
-                  : apiService.fetchNearbyDonations(
-                      lat: lat,
-                      lng: lng,
-                      category: categoryOrNull,
-                      radiusKm: 50,
-                    ),
+              future: _fetchFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -88,8 +107,7 @@ class ViewAllDonationsScreen extends StatelessWidget {
                     final isPostedByMe = currentUserId != null && 
                         (item['donorId'] == currentUserId || item['userId'] == currentUserId);
 
-                    // Blood category uses its specific wide card
-                    if (category == "blood" || item['category'] == "blood") {
+                    if (widget.category == "blood" || item['category'] == "blood") {
                       return InkWell(
                         onTap: () => Navigator.pushNamed(
                           context,
@@ -117,11 +135,8 @@ class ViewAllDonationsScreen extends StatelessWidget {
       color: Colors.white,
       child: Row(
         children: [
-          _filterChip("Sort by"),
-          const SizedBox(width: 8),
           _filterChip("Distance"),
           const Spacer(),
-          const Icon(Icons.tune, color: Colors.black54),
         ],
       ),
     );
@@ -140,7 +155,6 @@ class ViewAllDonationsScreen extends StatelessWidget {
     final images = item['images'] as List? ?? [];
     final String imageUrl = images.isNotEmpty ? images[0] : "";
     
-    // Updated to use 'username' as requested, with fallbacks
     final String userName = item['username'] ?? item['userName'] ?? item['donorName'] ?? item['name'] ?? "Donor";
     final String userImage = item['userImage'] ?? item['donorImage'] ?? item['profilePicture'] ?? "";
     final String userRating = (item['userRating'] ?? item['donorRating'] ?? item['averageRating'] ?? "4.5").toString();
@@ -185,7 +199,6 @@ class ViewAllDonationsScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                // "Free" tag
                 Positioned(
                   top: 12,
                   left: 12,
@@ -225,7 +238,6 @@ class ViewAllDonationsScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                // Expiry tag
                 Positioned(
                   bottom: 12,
                   right: 12,

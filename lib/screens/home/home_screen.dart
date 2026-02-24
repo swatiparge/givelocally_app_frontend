@@ -106,17 +106,44 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   Widget _drawerItem(IconData icon, String title, VoidCallback onTap,
-      {bool hasNotification = false}) {
+      {bool hasNotification = false, bool isComingSoon = false}) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 24),
       leading: Icon(icon, color: Colors.blueGrey.shade700, size: 24),
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 16,
-          color: Color(0xFF1A1C1E),
-          fontWeight: FontWeight.w500,
-        ),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                color: Color(0xFF1A1C1E),
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (isComingSoon) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: const Color(0xFFA5D6A7), width: 0.5),
+              ),
+              child: const Text(
+                "Coming Soon",
+                style: TextStyle(
+                  fontSize: 8,
+                  color: Color(0xFF2E7D32),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -132,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
           Icon(Icons.chevron_right, color: Colors.grey.shade300, size: 20),
         ],
       ),
-      onTap: onTap,
+      onTap: isComingSoon ? null : onTap,
     );
   }
 
@@ -298,17 +325,18 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                   _drawerItem(Icons.stars_outlined, "Karma & Badges", () {
                     Navigator.pop(context);
                   },
-                      hasNotification: true),
+                      hasNotification: true,
+                      isComingSoon: true),
                   _drawerItem(Icons.leaderboard_outlined, "Leaderboard", () {
                     Navigator.pop(context);
-                  }),
+                  }, isComingSoon: true),
 
                   const Divider(height: 32, indent: 24, endIndent: 24),
 
                   _drawerSectionTitle("APP INFO"),
                   _drawerItem(Icons.settings_outlined, "Settings", () {
                     Navigator.pop(context);
-                  }),
+                  }, isComingSoon: true),
                   _drawerItem(
                       Icons.help_outline_rounded, "Help & Support", () {
                         Navigator.pop(context);
