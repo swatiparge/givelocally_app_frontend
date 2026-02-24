@@ -22,9 +22,9 @@ class RazorpayAuthCapture {
     _initialized = true;
 
     // Initialize Firebase if not already done
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp();
-    }
+    // if (Firebase.apps.isEmpty) {
+    //   await Firebase.initializeApp();
+    // }
 
     debugPrint('✅ RazorpayAuthCapture initialized');
   }

@@ -8,6 +8,7 @@ class DonationItemCard extends StatelessWidget {
   final String distance;
   final String donorName;
   final String imageUrl;
+  final bool isPostedByMe;
   final VoidCallback? onTap;
 
   const DonationItemCard({
@@ -17,6 +18,7 @@ class DonationItemCard extends StatelessWidget {
     required this.distance,
     required this.donorName,
     required this.imageUrl,
+    this.isPostedByMe = false,
     this.onTap,
   });
 
@@ -93,6 +95,29 @@ class DonationItemCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (isPostedByMe)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        "Posted by you",
+                        style: TextStyle(
+                          color: Colors.blue.shade700,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
             Padding(
@@ -125,20 +150,21 @@ class DonationItemCard extends StatelessWidget {
                       Expanded(
                         // Added Expanded to prevent overflow on long names
                         child: Text(
-                          donorName,
+                          isPostedByMe ? "You" : donorName,
                           style: const TextStyle(fontSize: 12),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Text(
-                        "Request",
-                        style: TextStyle(
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                      if (!isPostedByMe)
+                        Text(
+                          "Request",
+                          style: TextStyle(
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ],

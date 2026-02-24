@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import '../../services/auth_service.dart';
+import '../home/home_screen.dart';
 import 'phone_login_screen.dart';
-import 'package:givelocally_app/screens/home/home_screen.dart';
-
-
-// ============================================
-// SPLASH SCREEN (WF-01 - Part 1)
-// Shows logo, checks auth state, redirects
-// ============================================
+import 'location_confirmation_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -21,35 +16,34 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAuthAndNavigate();
+    _checkStatus();
   }
 
-  // ==========================================
-  // CHECK AUTH STATE AND NAVIGATE
-  // ==========================================
-  
-  Future<void> _checkAuthAndNavigate() async {
-    // Wait 2 seconds (show splash)
+  Future<void> _checkStatus() async {
+    // Add a small delay for branding/splash
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
 
-    // Check if user is logged in
-    User? user = FirebaseAuth.instance.currentUser;
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final String nextStep = await authService.getNextStep();
 
-    if (user != null) {
-      // User logged in → Go to Home
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => const HomeScreen(),
-        ),
+    if (!mounted) return;
+
+    if (nextStep == '/home') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
+    } else if (nextStep == '/location-setup') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LocationConfirmationScreen()),
       );
     } else {
-      // Not logged in → Go to Login
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => const PhoneLoginScreen(),
-        ),
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const PhoneLoginScreen()),
       );
     }
   }
@@ -57,54 +51,44 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF4CAF50), // Primary green
+      backgroundColor: Colors.white,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo (placeholder - you'll add real logo later)
+            // Logo Placeholder
             Container(
-              width: 120,
               height: 120,
+              width: 120,
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                color: Colors.green.shade100,
+                borderRadius: BorderRadius.circular(30),
               ),
-              child: const Icon(
-                Icons.volunteer_activism,
-                size: 64,
-                color: Color(0xFF4CAF50),
+              child: Icon(Icons.volunteer_activism,
+                size: 60,
+                color: Colors.green.shade700
               ),
             ),
-            
             const SizedBox(height: 24),
-            
-            // App name
             const Text(
-              'GiveLocally',
+              "GiveLocally",
               style: TextStyle(
-                fontSize: 32,
+                fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: Color(0xFF1A1C1E),
               ),
             ),
-            
             const SizedBox(height: 8),
-            
-            // Tagline
-            const Text(
-              'Give locally, impact globally',
+            Text(
+              "Connecting neighbors, sharing kindness",
               style: TextStyle(
-                fontSize: 16,
-                color: Colors.white70,
+                fontSize: 14,
+                color: Colors.grey.shade600,
               ),
             ),
-            
             const SizedBox(height: 48),
-            
-            // Loading indicator
             const CircularProgressIndicator(
-              color: Colors.white,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
             ),
           ],
         ),

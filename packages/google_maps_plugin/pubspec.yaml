@@ -1,0 +1,30 @@
+name: google_maps_plugin
+description: >
+  Reusable Google Maps module providing a unified map view,
+  location picker, and geolocation utilities.
+
+version: 0.1.0
+homepage: https://github.com/yourusername/google_maps_plugin
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  google_maps_flutter: ^2.5.0
+  geolocator: ^10.1.0
+  permission_handler: ^11.0.0
+  flutter_image_compress: ^2.1.0
+  # 🔥 REQUIRED — because package imports them
+  firebase_core: ^4.4.0
+  firebase_auth: ^6.1.0
+  cloud_firestore: ^6.1.0
+  cloud_functions: ^6.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0

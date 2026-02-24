@@ -203,8 +203,11 @@ class _StationeryDonationScreenState extends State<StationeryDonationScreen> {
 
   void _showSuccessDialog() {
     Navigator.push(context, MaterialPageRoute(builder: (context) => DonationSuccessView(
-      onPostAnother: () => Navigator.of(context).popUntil((route) => route.isFirst),
-      onViewDonation: () => Navigator.of(context).popUntil((route) => route.isFirst),
+      onPostAnother: () => Navigator.of(context).pop(),
+      onViewDonation: () {
+        Navigator.of(context).pop();
+        // TODO: Navigate to donations list
+      },
     )));
   }
 

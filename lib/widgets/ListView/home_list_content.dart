@@ -1,10 +1,13 @@
 // lib/widgets/ListView/home_list_content.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'dart:math';
 import '../../services/api_service.dart';
+import '../../services/auth_service.dart';
 import '../ListView/get_started_cards.dart';
 import '../ListView/donation_item_card.dart';
 import '../ListView/urgent_blood_request_card.dart';
-import '../../screens/home/view_all_donations_screen.dart'; // Ensure this exists
+import '../../screens/home/view_all_donations_screen.dart';
 
 class HomeListContent extends StatefulWidget {
   const HomeListContent({super.key, required this.lat, required this.lng});
@@ -18,34 +21,94 @@ class HomeListContent extends StatefulWidget {
 
 class _HomeListContentState extends State<HomeListContent> {
   final ApiService _apiService = ApiService();
+  
+  // Cache the futures in state to prevent re-fetching on every rebuild
+  late Future<List<dynamic>> _bloodRequestsFuture;
+  late Future<List<dynamic>> _foodDonationsFuture;
+  late Future<List<dynamic>> _otherItemsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _initFutures();
+  }
+
+  void _initFutures() {
+    _bloodRequestsFuture = _apiService.fetchNearbyDonations(
+      lat: widget.lat,
+      lng: widget.lng,
+      category: "blood",
+      radiusKm: 50.0,
+    );
+    
+    _foodDonationsFuture = _apiService.fetchMultipleCategories(
+      lat: widget.lat,
+      lng: widget.lng,
+      categories: ["food"],
+      radiusKm: 50,
+    );
+    
+    _otherItemsFuture = _apiService.fetchMultipleCategories(
+      lat: widget.lat,
+      lng: widget.lng,
+      categories: ["appliances", "stationery"],
+      radiusKm: 50,
+    );
+  }
+
+  @override
+  void didUpdateWidget(HomeListContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Only refresh if location changed significantly (> 500 meters)
+    final distance = _calculateDistance(
+      oldWidget.lat, oldWidget.lng,
+      widget.lat, widget.lng,
+    );
+    
+    if (distance > 0.5) {
+      debugPrint("HOME_LIST_CONTENT: Significant movement detected ($distance km). Refreshing futures.");
+      setState(() {
+        _initFutures();
+      });
+    }
+  }
+
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    var p = 0.017453292519943295;
+    var c = cos;
+    var a = 0.5 - c((lat2 - lat1) * p)/2 + 
+          c(lat1 * p) * c(lat2 * p) * 
+          (1 - c((lon2 - lon1) * p))/2;
+    return 12742 * asin(sqrt(a));
+  }
 
   @override
   Widget build(BuildContext context) {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final currentUserId = authService.firebaseUser?.uid;
+
     return RefreshIndicator(
       onRefresh: () async {
-        if (!mounted) return;
-        setState(() {});
-        await Future.delayed(const Duration(milliseconds: 250));
+        setState(() {
+          _initFutures();
+        });
+        await _bloodRequestsFuture;
+        await _foodDonationsFuture;
+        await _otherItemsFuture;
       },
       child: ListView(
         children: [
           _buildHeader("Get Started", showSeeAll: false),
           const GetStartedCards(),
 
-          // const CategoryFilters(),
           _buildHeader(
             "Urgent Blood Requests",
             onSeeAll: () => _navigateToViewAll("All Blood Requests", "blood"),
           ),
 
           FutureBuilder<List<dynamic>>(
-            future: _apiService.fetchNearbyDonations(
-              lat: widget.lat,
-              lng: widget.lng,
-              category: "blood",
-              // Backend allows radiusKm 1-50
-              radiusKm: 50.0,
-            ),
+            future: _bloodRequestsFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
@@ -68,17 +131,23 @@ class _HomeListContentState extends State<HomeListContent> {
               }
 
               if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                // FIXED: Strictly show only ONE card on home page
+                final item = snapshot.data![0];
+                final isPostedByMe = currentUserId != null && 
+                    (item['donorId'] == currentUserId || item['userId'] == currentUserId);
+
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: InkWell(
                     onTap: () => Navigator.pushNamed(
                       context,
                       '/donation-detail',
-                      arguments: snapshot.data![0],
+                      arguments: item,
                     ),
                     borderRadius: BorderRadius.circular(16),
-                    child: UrgentBloodRequestCard(donation: snapshot.data![0]),
+                    child: UrgentBloodRequestCard(
+                      donation: item,
+                      isPostedByMe: isPostedByMe,
+                    ),
                   ),
                 );
               }
@@ -98,7 +167,7 @@ class _HomeListContentState extends State<HomeListContent> {
             "Food Donations",
             onSeeAll: () => _navigateToViewAll("All Food Donations", "food"),
           ),
-          _buildCategoryList(["food"], limit: 5),
+          _buildCategoryList(_foodDonationsFuture, limit: 5),
 
           _buildHeader(
             "Other Items",
@@ -108,8 +177,7 @@ class _HomeListContentState extends State<HomeListContent> {
               list: ["appliances", "stationery"],
             ),
           ),
-          // Combined Appliances and Stationery
-          _buildCategoryList(["appliances", "stationery"], limit: 5),
+          _buildCategoryList(_otherItemsFuture, limit: 5),
 
           const SizedBox(height: 100),
         ],
@@ -132,14 +200,12 @@ class _HomeListContentState extends State<HomeListContent> {
     );
   }
 
-  Widget _buildCategoryList(List<String> categories, {int limit = 5}) {
+  Widget _buildCategoryList(Future<List<dynamic>> future, {int limit = 5}) {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final currentUserId = authService.firebaseUser?.uid;
+
     return FutureBuilder<List<dynamic>>(
-      future: _apiService.fetchMultipleCategories(
-        lat: widget.lat,
-        lng: widget.lng,
-        categories: categories,
-        radiusKm: 50,
-      ),
+      future: future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const SizedBox(
@@ -155,7 +221,6 @@ class _HomeListContentState extends State<HomeListContent> {
           );
         }
 
-        // Limit the items shown on home page
         final items = snapshot.data!.take(limit).toList();
 
         return SizedBox(
@@ -166,12 +231,18 @@ class _HomeListContentState extends State<HomeListContent> {
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
+              final isPostedByMe = currentUserId != null && 
+                  (item['donorId'] == currentUserId || item['userId'] == currentUserId);
+
+              final userName = item['userName'] ?? item['username'] ?? item['donorName'] ?? "Donor";
+
               return DonationItemCard(
                 title: item['title'] ?? "Item",
                 category: item['category'] ?? "Other",
                 distance: _formatDistance(item['distance']),
-                donorName: item['donorName'] ?? "Donor",
+                donorName: userName,
                 imageUrl: _firstImageUrl(item),
+                isPostedByMe: isPostedByMe,
                 onTap: () => Navigator.pushNamed(
                   context,
                   '/donation-detail',
@@ -187,108 +258,31 @@ class _HomeListContentState extends State<HomeListContent> {
 
   String _formatDistance(dynamic value) {
     if (value is num) return "${value.toStringAsFixed(1)}km";
-    if (value is String && value.isNotEmpty) return value;
     return "";
   }
 
   String _firstImageUrl(dynamic item) {
     try {
-      final images = (item is Map) ? item['images'] : null;
-      if (images is List && images.isNotEmpty) {
-        for (final v in images) {
-          if (v is! String) continue;
-          final s = v.trim();
-          if (!s.startsWith('http')) continue;
-          final lower = s.toLowerCase();
-          // Skip legacy/test placeholders
-          if (lower.contains('example.com')) continue;
-          if (lower.contains('via.placeholder')) continue;
-          return s;
-        }
-      }
-      if (images is String && images.startsWith('http')) return images;
-    } catch (_) {
-      // ignore
-    }
+      final images = item['images'];
+      if (images is List && images.isNotEmpty) return images[0];
+    } catch (_) {}
     return "https://via.placeholder.com/200x120";
   }
 
-  Widget _buildHeader(
-    String title, {
-    bool showSeeAll = true,
-    VoidCallback? onSeeAll,
-  }) {
+  Widget _buildHeader(String title, {bool showSeeAll = true, VoidCallback? onSeeAll}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF1A1C1E),
-            ),
-          ),
+          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1A1C1E))),
           if (showSeeAll)
             InkWell(
               onTap: onSeeAll,
-              child: const Text(
-                "See all",
-                style: TextStyle(
-                  color: Colors.green,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              child: const Text("See all", style: TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.w600)),
             ),
         ],
       ),
     );
   }
 }
-
-//
-// class CategoryFilters extends StatelessWidget {
-//   const CategoryFilters({super.key});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Padding(
-//       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-//       child: Row(
-//         children: [
-//           _chip("Category"),
-//           const SizedBox(width: 8),
-//           _chip("Distance"),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   Widget _chip(String text) => Expanded(
-//     child: Container(
-//       padding: const EdgeInsets.all(10),
-//       decoration: BoxDecoration(
-//         color: Colors.white,
-//         border: Border.all(color: Colors.grey.shade300),
-//         borderRadius: BorderRadius.circular(8),
-//         boxShadow: [
-//           BoxShadow(
-//             color: Colors.black.withOpacity(0.02),
-//             blurRadius: 4,
-//             offset: const Offset(0, 2),
-//           ),
-//         ],
-//       ),
-//       child: const Row(
-//         children: [
-//           Text("Category", style: TextStyle(fontWeight: FontWeight.w500)),
-//           Spacer(),
-//           Icon(Icons.arrow_drop_down, color: Colors.grey),
-//         ],
-//       ),
-//     ),
-//   );
-// }

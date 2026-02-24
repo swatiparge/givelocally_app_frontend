@@ -2,7 +2,6 @@ library razorpay_auth_capture;
 
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 
 // Import local files
 import 'models/payment_models.dart';
@@ -41,9 +40,6 @@ class RazorpayAuthCapture {
     }
     _config = config;
     _initialized = true;
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp();
-    }
     debugPrint('✅ RazorpayAuthCapture initialized');
   }
 
@@ -89,13 +85,13 @@ class RazorpayAuthCapture {
 
   static Future<dynamic> showPickupCode({
     required BuildContext context,
-    required String transactionId,
+    required Map<String, dynamic> transaction,
   }) {
     return Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => PickupCodeScreen(
-          transactionId: transactionId,
+          transaction: transaction,
         ),
       ),
     );

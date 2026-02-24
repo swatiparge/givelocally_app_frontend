@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import 'package:intl/intl.dart';
+import 'complete_pickup_screen.dart';
+import '../home/donation_detail_screen.dart';
 
 class MyDonationsScreen extends StatefulWidget {
   const MyDonationsScreen({super.key});
@@ -31,8 +33,10 @@ class _MyDonationsScreenState extends State<MyDonationsScreen> with SingleTicker
         .where('donorId', isEqualTo: uid);
 
     if (isActive) {
-      query = query.where('status', whereIn: ['active', 'reserved', 'pending']);
+      // Show only active and reserved donations in the Active tab
+      query = query.where('status', whereIn: ['active', 'reserved']);
     } else {
+      // Show completed donations in the Completed tab
       query = query.where('status', isEqualTo: 'completed');
     }
 
@@ -168,7 +172,10 @@ class _MyDonationsScreenState extends State<MyDonationsScreen> with SingleTicker
           itemCount: docs.length,
           separatorBuilder: (_, __) => const SizedBox(height: 16),
           itemBuilder: (context, index) {
-            final data = docs[index].data() as Map<String, dynamic>;
+            final doc = docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+            // Add document ID to the data map
+            data['id'] = doc.id;
             return _buildDonationItemCard(data);
           },
         );
@@ -235,7 +242,18 @@ class _MyDonationsScreenState extends State<MyDonationsScreen> with SingleTicker
     final title = item['title'] ?? "Item";
     final status = (item['status'] ?? 'active').toString().toLowerCase();
     final timestamp = item['created_at'] as Timestamp?;
-    final listedDate = timestamp != null ? DateFormat('d MMM y').format(timestamp.toDate()) : 'Not specified';
+    
+    String timeAgo = "Just now";
+    if (timestamp != null) {
+      final diff = DateTime.now().difference(timestamp.toDate());
+      if (diff.inDays > 0) {
+        timeAgo = "${diff.inDays}d ago";
+      } else if (diff.inHours > 0) {
+        timeAgo = "${diff.inHours}h ago";
+      } else if (diff.inMinutes > 0) {
+        timeAgo = "${diff.inMinutes}m ago";
+      }
+    }
 
     final requestCount = item['requestCount'] ?? 0;
     final reservedBy = item['reservedBy'] as Map?;
@@ -244,10 +262,11 @@ class _MyDonationsScreenState extends State<MyDonationsScreen> with SingleTicker
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,43 +279,65 @@ class _MyDonationsScreenState extends State<MyDonationsScreen> with SingleTicker
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Color(0xFF1A1C1E)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              color: Color(0xFF1A1C1E),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         _buildStatusBadge(status),
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text("Listed on $listedDate", style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                    const SizedBox(height: 8),
+                    Text("Listed $timeAgo", style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
+                    const SizedBox(height: 12),
                     if (status == 'reserved' && reservedBy != null)
                       _buildReservedByChip(reservedBy)
-                    else if (status == 'active' && requestCount > 0)
+                    else if (status == 'active')
                       _buildRequestCountChip(requestCount),
                   ],
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 20),
+          const Divider(height: 1, color: Color(0xFFF1F1F1)),
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DonationDetailScreen(donation: item),
+                      ),
+                    );
+                  },
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    side: BorderSide(color: Colors.grey.shade300),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(color: Colors.grey.shade200),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: const Text("View Details", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    "View Details",
+                    style: TextStyle(color: Color(0xFF1A1C1E), fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
                 ),
               ),
-              if (status == 'reserved') ...[
+              if (status == 'reserved' || (status == 'active' && requestCount > 0)) ...[
                 const SizedBox(width: 12),
-                _buildCompleteButton(),
-              ] else if (status == 'active' && requestCount > 0) ...[
-                const SizedBox(width: 12),
-                _buildReviewButton(),
+                _buildReviewButton(item, isReserved: status == 'reserved'),
               ],
             ],
           )
@@ -312,32 +353,32 @@ class _MyDonationsScreenState extends State<MyDonationsScreen> with SingleTicker
     switch (category) {
       case 'food':
         icon = Icons.restaurant_outlined;
-        bgColor = Colors.orange.shade50;
+        bgColor = const Color(0xFFFFF8E1);
         break;
       case 'appliances':
         icon = Icons.tv_outlined;
-        bgColor = Colors.blue.shade50;
+        bgColor = const Color(0xFFE3F2FD);
         break;
       case 'blood':
         icon = Icons.water_drop_outlined;
-        bgColor = Colors.red.shade50;
+        bgColor = const Color(0xFFFFEBEE);
         break;
       case 'stationery':
         icon = Icons.menu_book_outlined;
-        bgColor = Colors.purple.shade50;
+        bgColor = const Color(0xFFF3E5F5);
         break;
       default:
         icon = Icons.inventory_2_outlined;
-        bgColor = Colors.grey.shade200;
+        bgColor = const Color(0xFFF5F5F5);
     }
 
     return Container(
-      width: 68, height: 68,
+      width: 72, height: 72,
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(16)
+        borderRadius: BorderRadius.circular(20)
       ),
-      child: Icon(icon, color: Color.lerp(bgColor, Colors.black, 0.6), size: 32),
+      child: Icon(icon, color: Colors.blue.shade700, size: 36), // Updated to match image blue icons
     );
   }
 
@@ -346,7 +387,14 @@ class _MyDonationsScreenState extends State<MyDonationsScreen> with SingleTicker
       children: [
         CircleAvatar(radius: 10, backgroundImage: NetworkImage(reservedBy['photoUrl'] ?? 'https://via.placeholder.com/150')),
         const SizedBox(width: 8),
-        Text("Reserved by ${reservedBy['name'] ?? 'user'}", style: TextStyle(fontSize: 13, color: Colors.grey.shade800)),
+        Expanded(
+          child: Text(
+            "Reserved by ${reservedBy['name'] ?? 'user'}",
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }
@@ -354,72 +402,83 @@ class _MyDonationsScreenState extends State<MyDonationsScreen> with SingleTicker
   Widget _buildRequestCountChip(int count) {
     return Row(
       children: [
-        Icon(Icons.people_alt_outlined, size: 16, color: Colors.green.shade700),
+        const Icon(Icons.people_alt_outlined, size: 18, color: Color(0xFF4CAF50)),
         const SizedBox(width: 8),
-        Text("$count requests", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+        Text("$count requests", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF4CAF50))),
       ],
     );
   }
 
-  Widget _buildCompleteButton() {
-    return Expanded(
-      child: ElevatedButton.icon(
-        onPressed: () {},
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green.shade600,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        icon: const Icon(Icons.check_circle_outline, size: 18),
-        label: const Text("Complete Pickup", style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
-
-  Widget _buildReviewButton() {
+  Widget _buildReviewButton(Map<String, dynamic> item, {required bool isReserved}) {
     return Expanded(
       child: ElevatedButton(
-        onPressed: () {},
+        onPressed: () async {
+          if (isReserved) {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CompletePickupScreen(donation: item),
+              ),
+            );
+            if (result == true) {
+              setState(() {}); // Refresh list if completed
+            }
+          } else {
+            // TODO: Open review requests list screen
+          }
+        },
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1A1C1E),
+          backgroundColor: const Color(0xFF0F172A), // Dark blue/black as per image
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
-        child: const Text("Review Requests", style: TextStyle(fontWeight: FontWeight.bold)),
+        child: const Text(
+          "Review Requests",
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
       ),
     );
   }
 
   Widget _buildStatusBadge(String status) {
     Color color;
+    Color textColor;
     String text = status.toUpperCase();
 
     switch (status) {
       case 'active':
-        color = Colors.green;
+        color = const Color(0xFFE8F5E9);
+        textColor = const Color(0xFF2E7D32);
         break;
       case 'reserved':
-        color = Colors.orange;
+        color = const Color(0xFFFFF3E0);
+        textColor = const Color(0xFFE65100);
+        break;
+      case 'completed':
+        color = const Color(0xFFE8F5E9);
+        textColor = const Color(0xFF2E7D32);
         break;
       case 'pending':
-        color = Colors.blue;
-        text = 'PENDING PICKUP';
+        color = const Color(0xFFE3F2FD);
+        textColor = const Color(0xFF1565C0);
+        text = 'PENDING';
         break;
       default:
-        color = Colors.grey;
+        color = const Color(0xFFF5F5F5);
+        textColor = Colors.grey;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(6),
+        color: color,
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         text,
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+        style: TextStyle(color: textColor, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
       ),
     );
   }

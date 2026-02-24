@@ -17,6 +17,7 @@ import '../../services/geolocation_service.dart';
 import '../auth/profile_setup_screen.dart';
 import '../profile/profile_page.dart';
 import '../profile/my_donations_screen.dart';
+import '../profile/received_items_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -142,11 +143,13 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
     return Scaffold(
       key: _scaffoldKey,
-      appBar: AppHeader(
-        location: user?.area ?? _currentAddress,
-        onNotificationTap: () {},
-        onMenuTap: () => _scaffoldKey.currentState?.openEndDrawer(),
-      ),
+      appBar: _currentIndex == 3
+          ? null
+          : AppHeader(
+              location: user?.area ?? _currentAddress,
+              onNotificationTap: () {},
+              onMenuTap: () => _scaffoldKey.currentState?.openEndDrawer(),
+            ),
       endDrawer: Drawer(
         width: MediaQuery.of(context).size.width * 0.85,
         backgroundColor: Colors.white,
@@ -278,6 +281,15 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                   _drawerItem(
                       Icons.inventory_2_outlined, "My Received Items", () {
                         Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ReceivedItemsScreen()),
+                        );
+                      }),
+                  _drawerItem(
+                      Icons.shopping_bag_outlined, "Request an Item", () {
+                        Navigator.pop(context);
+                        // TODO: Implement Request an Item navigation
                       }),
 
                   const Divider(height: 32, indent: 24, endIndent: 24),
@@ -309,7 +321,12 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
               child: InkWell(
-                onTap: () => authService.signOut(),
+                onTap: () async {
+                  await authService.signOut();
+                  if (context.mounted) {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                  }
+                },
                 child: Row(
                   children: const [
                     Icon(Icons.logout_rounded, color: Color(0xFFD32F2F)),
@@ -331,14 +348,16 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       ),
       body: Column(
         children: [
-          HomeSearchBar(
-            onSearchChanged: (value) {},
-            onFilterTap: () {},
-          ),
-          ViewToggle(
-            isListView: _isListView,
-            onChanged: (val) => setState(() => _isListView = val),
-          ),
+          if (_currentIndex == 0)
+            HomeSearchBar(
+              onSearchChanged: (value) {},
+              onFilterTap: () {},
+            ),
+          if (_currentIndex == 0)
+            ViewToggle(
+              isListView: _isListView,
+              onChanged: (val) => setState(() => _isListView = val),
+            ),
           Expanded(
             child: IndexedStack(
               index: _currentIndex,
@@ -351,7 +370,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                     : MapViewScreen(initialPosition: _currentPosition),
                 const Center(child: Text("Community Tab")),
                 const Center(child: Text("Chat Tab")),
-                const Center(child: Text("Profile Tab")),
+                const ProfilePage(showBackButton: false),
               ],
             ),
           ),

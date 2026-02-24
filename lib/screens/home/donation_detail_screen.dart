@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../services/auth_service.dart';
 
 class DonationDetailScreen extends StatefulWidget {
   final Map<String, dynamic> donation;
@@ -312,7 +314,7 @@ class _DonationDetailScreenState extends State<DonationDetailScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _bottomBar(d),
+      bottomNavigationBar: _bottomBar(context, d),
     );
   }
 
@@ -809,7 +811,12 @@ class _DonationDetailScreenState extends State<DonationDetailScreen> {
     );
   }
 
-  Widget _bottomBar(Map<String, dynamic> donation) {
+  Widget _bottomBar(BuildContext context, Map<String, dynamic> donation) {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final currentUserId = authService.firebaseUser?.uid;
+    final donorId = donation['donorId'] ?? donation['userId'];
+    final isPostedByMe = currentUserId != null && currentUserId == donorId;
+
     return SafeArea(
       top: false,
       child: Container(
@@ -850,49 +857,68 @@ class _DonationDetailScreenState extends State<DonationDetailScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
-              child: SizedBox(
-                height: 56,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF22C55E),
-                    foregroundColor: Colors.black,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
+            if (!isPostedByMe)
+              Expanded(
+                child: SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF22C55E),
+                      foregroundColor: Colors.black,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pushNamed(
+                        context,
+                        '/reserve-item',
+                        arguments: donation,
+                      );
+                    },
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Text(
+                          'Claim Item  →',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'PAY ₹9 PLATFORM FEE',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/reserve-item',
-                      arguments: donation,
-                    );
-                  },
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Text(
-                        'Claim Item  →',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'PAY ₹9 PLATFORM FEE',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
+                ),
+              )
+            else
+              Expanded(
+                child: Container(
+                  height: 56,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: const Text(
+                    'This is your donation',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),

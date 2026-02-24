@@ -9,7 +9,8 @@ import 'received_items_screen.dart';
 import 'requested_items_screen.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  final bool showBackButton;
+  const ProfilePage({super.key, this.showBackButton = true});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -36,7 +37,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: const BackButton(color: Colors.black),
+        leading: widget.showBackButton ? const BackButton(color: Colors.black) : null,
         title: const Text("My Profile", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(icon: const Icon(Icons.settings_outlined, color: Colors.black), onPressed: () {}),
@@ -547,7 +548,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15, offset: const Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -562,7 +563,12 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
             child: Divider(color: Color(0xFFF1F1F1)),
           ),
           InkWell(
-            onTap: () => auth.signOut(),
+            onTap: () async {
+              await auth.signOut();
+              if (context.mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+              }
+            },
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Row(
