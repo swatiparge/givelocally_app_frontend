@@ -14,6 +14,7 @@ import '../../services/storage_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/donation/location_picker_field.dart';
 import '../../widgets/donation/donation_success_view.dart';
+import '../profile/my_donations_screen.dart';
 
 class FoodDonationScreen extends StatefulWidget {
   const FoodDonationScreen({super.key});
@@ -212,10 +213,26 @@ class _FoodDonationScreenState extends State<FoodDonationScreen> {
         throw Exception(response.body);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showSuccessDialog() {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => DonationSuccessView(
+      onPostAnother: () {
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      },
+      onViewDonation: () {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const MyDonationsScreen()),
+          (route) => route.isFirst,
+        );
+      },
+    )));
   }
 
   @override
@@ -228,8 +245,11 @@ class _FoodDonationScreenState extends State<FoodDonationScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () {
-            if (_currentStep == 2) setState(() => _currentStep = 1);
-            else Navigator.pop(context);
+            if (_currentStep == 2) {
+              setState(() => _currentStep = 1);
+            } else {
+              Navigator.pop(context);
+            }
           },
         ),
         title: const Text("Donate Food", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
@@ -539,16 +559,4 @@ class _FoodDonationScreenState extends State<FoodDonationScreen> {
       ),
     ),
   );
-
-  void _showSuccessDialog() {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => DonationSuccessView(
-      onPostAnother: () => Navigator.of(context).pop(),
-      onViewDonation: () {
-        Navigator.of(context).pop();
-        // TODO: Replace with the actual route for the user's donations list.
-        // For example:
-        // Navigator.of(context).pushNamed('/my-donations');
-      },
-    )));
-  }
 }

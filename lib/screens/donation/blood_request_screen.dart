@@ -9,6 +9,7 @@ import '../../widgets/donation/donation_success_view.dart';
 import '../../config/default_location.dart';
 import '../../services/storage_service.dart';
 import '../../services/auth_service.dart';
+import '../profile/my_donations_screen.dart'; // Added import
 
 class BloodRequestScreen extends StatefulWidget {
   const BloodRequestScreen({super.key});
@@ -129,8 +130,15 @@ class _BloodRequestScreenState extends State<BloodRequestScreen> {
 
   void _showSuccessDialog() {
     Navigator.push(context, MaterialPageRoute(builder: (context) => DonationSuccessView(
-      onPostAnother: () => Navigator.of(context).popUntil((route) => route.isFirst),
-      onViewDonation: () => Navigator.of(context).popUntil((route) => route.isFirst),
+      onPostAnother: () {
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      },
+      onViewDonation: () {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const MyDonationsScreen()),
+          (route) => route.isFirst,
+        );
+      },
     )));
   }
 

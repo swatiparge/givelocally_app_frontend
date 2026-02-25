@@ -78,7 +78,7 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
             'amount': 900,
             'name': 'GiveLocally',
             'order_id': orderId,
-            'description': 'Platform Fee',
+            'description': 'Reservation Fee',
             'prefill': {'contact': user.phone, 'email': user.email},
             'theme': {'color': '#66BB6A'}
           };

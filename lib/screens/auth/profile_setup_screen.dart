@@ -32,7 +32,14 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final StorageService _storageService = StorageService();
 
   final List<String> _bloodGroups = [
-    'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'
+    'A+',
+    'A-',
+    'B+',
+    'B-',
+    'AB+',
+    'AB-',
+    'O+',
+    'O-',
   ];
 
   @override
@@ -42,7 +49,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authService = Provider.of<AuthService>(context, listen: false);
       final user = authService.userModel;
-      
+
       if (user != null) {
         setState(() {
           _nameController.text = user.name ?? '';
@@ -131,7 +138,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         updates['profilePicture'] = photoUrl;
       }
 
-      await FirebaseFirestore.instance.collection('users').doc(uid).set(updates, SetOptions(merge: true));
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set(updates, SetOptions(merge: true));
       debugPrint('✅ Profile updated: $name');
 
       await authService.reloadUserData();
@@ -212,18 +222,28 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                               color: const Color(0xFFF2F2F2),
                               shape: BoxShape.circle,
                               image: _image != null
-                                  ? DecorationImage(image: FileImage(_image!), fit: BoxFit.cover)
+                                  ? DecorationImage(
+                                      image: FileImage(_image!),
+                                      fit: BoxFit.cover,
+                                    )
                                   : (_existingImageUrl != null
-                                      ? DecorationImage(image: NetworkImage(_existingImageUrl!), fit: BoxFit.cover)
-                                      : null),
+                                        ? DecorationImage(
+                                            image: NetworkImage(
+                                              _existingImageUrl!,
+                                            ),
+                                            fit: BoxFit.cover,
+                                          )
+                                        : null),
                             ),
-                            child: (_image == null && _existingImageUrl == null) ? const Center(
-                              child: Icon(
-                                Icons.person,
-                                size: 80,
-                                color: Color(0xFFCCCCCC),
-                              ),
-                            ) : null,
+                            child: (_image == null && _existingImageUrl == null)
+                                ? const Center(
+                                    child: Icon(
+                                      Icons.person,
+                                      size: 80,
+                                      color: Color(0xFFCCCCCC),
+                                    ),
+                                  )
+                                : null,
                           ),
                           Positioned(
                             bottom: 0,
@@ -233,7 +253,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                               decoration: BoxDecoration(
                                 color: customGreen,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
                               ),
                               child: const Icon(
                                 Icons.camera_alt,
@@ -284,8 +307,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     const SizedBox(height: 8),
                     const Align(
                       alignment: Alignment.centerLeft,
-                      child: Text("Phone number cannot be changed. Contact support for help.",
-                          style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      child: Text(
+                        "Phone number cannot be changed. Contact support for help.",
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
                     ),
 
                     const SizedBox(height: 24),
@@ -393,7 +418,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         filled: true,
         fillColor: fillColor,
         suffixIcon: Icon(suffixIcon, color: const Color(0xFF8E8E8E), size: 20),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFFF1F1F1)),
@@ -412,27 +440,50 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
   Widget _buildVerifiedPhoneField(Color borderColor, Color bg) {
     return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: bg, borderRadius: BorderRadius.circular(16), border: Border.all(color: borderColor),
-        ),
-        child: Row(
-            children: [
-            Text(_verifiedPhone, style: const TextStyle(fontSize: 16, color: Colors.blueGrey, fontWeight: FontWeight.w500)),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
-          child: Row(
-            children: [
-              Icon(Icons.check_circle, size: 14, color: Colors.green.shade600),
-              const SizedBox(width: 4),
-              const Text("VERIFIED", style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
-            ],
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: [
+          Text(
+            _verifiedPhone,
+            style: const TextStyle(
+              fontSize: 16,
+              color: Colors.blueGrey,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        )
-            ],
-        ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.check_circle,
+                  size: 14,
+                  color: Colors.green.shade600,
+                ),
+                const SizedBox(width: 4),
+                const Text(
+                  "VERIFIED",
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -445,7 +496,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         hintStyle: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 15),
         filled: true,
         fillColor: fieldBg,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFFF1F1F1)),
@@ -460,10 +514,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         ),
       ),
       items: _bloodGroups
-          .map((bg) => DropdownMenuItem(
-                value: bg,
-                child: Text(bg),
-              ))
+          .map((bg) => DropdownMenuItem(value: bg, child: Text(bg)))
           .toList(),
       onChanged: (value) {
         setState(() => _selectedBloodGroup = value);

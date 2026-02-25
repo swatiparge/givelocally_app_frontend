@@ -13,6 +13,7 @@ import '../../services/storage_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/donation/donation_success_view.dart';
 import '../../widgets/donation/location_picker_field.dart';
+import '../profile/my_donations_screen.dart'; // Added import
 
 class AppliancesDonationScreen extends StatefulWidget {
   const AppliancesDonationScreen({super.key});
@@ -246,8 +247,15 @@ class _AppliancesDonationScreenState extends State<AppliancesDonationScreen> {
 
   void _showSuccessDialog() {
     Navigator.push(context, MaterialPageRoute(builder: (context) => DonationSuccessView(
-      onPostAnother: () => Navigator.of(context).popUntil((route) => route.isFirst),
-      onViewDonation: () => Navigator.of(context).popUntil((route) => route.isFirst),
+      onPostAnother: () {
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      },
+      onViewDonation: () {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const MyDonationsScreen()),
+          (route) => route.isFirst,
+        );
+      },
     )));
   }
 

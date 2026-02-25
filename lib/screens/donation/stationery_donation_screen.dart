@@ -13,6 +13,7 @@ import '../../services/storage_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/donation/location_picker_field.dart';
 import '../../widgets/donation/donation_success_view.dart';
+import '../profile/my_donations_screen.dart'; // Added import
 
 class StationeryDonationScreen extends StatefulWidget {
   const StationeryDonationScreen({super.key});
@@ -203,10 +204,14 @@ class _StationeryDonationScreenState extends State<StationeryDonationScreen> {
 
   void _showSuccessDialog() {
     Navigator.push(context, MaterialPageRoute(builder: (context) => DonationSuccessView(
-      onPostAnother: () => Navigator.of(context).pop(),
+      onPostAnother: () {
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      },
       onViewDonation: () {
-        Navigator.of(context).pop();
-        // TODO: Navigate to donations list
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const MyDonationsScreen()),
+          (route) => route.isFirst,
+        );
       },
     )));
   }

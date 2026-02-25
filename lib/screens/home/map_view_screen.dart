@@ -24,16 +24,18 @@ class _MapViewScreenState extends State<MapViewScreen> {
   // ------------------------------------------------------------------
   // rate limiting / caching helpers so we don't spam the backend
   LatLng? _lastQueryPosition;
+  String? _lastQueryCategory;
   DateTime? _lastQueryTime;
   Timer? _debounceTimer;
+  
   static const double _kMinMoveMeters = 500; // only reload if moved >500m
-  static const Duration _kMinReloadInterval = Duration(minutes: 2);
+  static const Duration _kMinReloadInterval = Duration(seconds: 30);
   // ------------------------------------------------------------------
 
   @override
   void initState() {
     super.initState();
-    _scheduleLoad();
+    _scheduleLoad(force: true);
   }
 
   @override
@@ -59,16 +61,16 @@ class _MapViewScreenState extends State<MapViewScreen> {
     }
   }
 
-  /// Actually performs the network call.  This method **does not**
-  /// itself apply any rate‑limiting or caching; those checks happen in
-  /// [_scheduleLoad] and [_shouldLoad].
+  /// Actually performs the network call.
   Future<void> _loadNearbyData() async {
+    final String? categoryParam = _selectedCategory == "All"
+        ? null
+        : _selectedCategory.toLowerCase();
+
     final data = await _apiService.fetchNearbyDonations(
       lat: widget.initialPosition.latitude,
       lng: widget.initialPosition.longitude,
-      category: _selectedCategory == "All"
-          ? null
-          : _selectedCategory.toLowerCase(),
+      category: categoryParam,
       radiusKm: 20,
     );
 
@@ -91,43 +93,49 @@ class _MapViewScreenState extends State<MapViewScreen> {
 
     // update cache info
     _lastQueryPosition = widget.initialPosition;
+    _lastQueryCategory = _selectedCategory;
     _lastQueryTime = DateTime.now();
   }
 
   /// Schedule a load with debounce and rate limit checks.
-  void _scheduleLoad() {
+  void _scheduleLoad({bool force = false}) {
     // cancel any pending timer
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
-      if (_shouldLoad()) {
+      if (force || _shouldLoad()) {
         _loadNearbyData();
       }
     });
   }
 
   /// Determines whether a new network request should be made based on
-  /// movement distance or time since the last request.
+  /// movement distance, category change, or time since the last request.
   bool _shouldLoad() {
+    // 1. If category changed, we MUST load
+    if (_selectedCategory != _lastQueryCategory) return true;
+
     final now = DateTime.now();
-    if (_lastQueryTime != null &&
-        now.difference(_lastQueryTime!) < _kMinReloadInterval) {
-      // check distance threshold as well
-      if (_lastQueryPosition != null) {
-        final dist = _haversineDistance(
-          _lastQueryPosition!.latitude,
-          _lastQueryPosition!.longitude,
-          widget.initialPosition.latitude,
-          widget.initialPosition.longitude,
-        );
-        if (dist < _kMinMoveMeters) {
-          // nothing significant changed
-          return false;
-        }
-      } else {
-        return false;
+    
+    // 2. If it's been a while, we should load
+    if (_lastQueryTime == null || 
+        now.difference(_lastQueryTime!) > _kMinReloadInterval) {
+      return true;
+    }
+
+    // 3. Check distance threshold
+    if (_lastQueryPosition != null) {
+      final dist = _haversineDistance(
+        _lastQueryPosition!.latitude,
+        _lastQueryPosition!.longitude,
+        widget.initialPosition.latitude,
+        widget.initialPosition.longitude,
+      );
+      if (dist > _kMinMoveMeters) {
+        return true;
       }
     }
-    return true;
+
+    return false;
   }
 
   /// Haversine distance between two lat/lng pairs in meters.
@@ -223,8 +231,6 @@ class _MapViewScreenState extends State<MapViewScreen> {
   }
 
   Widget _buildCategoryRow() {
-    // when category changes we also want to refresh data, but still
-    // respect the rate‑limiting logic
     final cats = ["All", "Blood", "Food", "Appliances", "Stationery"];
     return SizedBox(
       height: 40,
@@ -239,8 +245,10 @@ class _MapViewScreenState extends State<MapViewScreen> {
               label: Text(cats[i]),
               selected: sel,
               onSelected: (v) {
-                setState(() => _selectedCategory = cats[i]);
-                _scheduleLoad();
+                if (v) {
+                  setState(() => _selectedCategory = cats[i]);
+                  _scheduleLoad(force: true);
+                }
               },
               selectedColor: Colors.green,
               labelStyle: TextStyle(color: sel ? Colors.white : Colors.black87),
