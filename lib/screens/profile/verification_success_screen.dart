@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'profile_page.dart';
 
 class VerificationSuccessScreen extends StatelessWidget {
   final Map<String, dynamic> donation;
@@ -19,6 +20,13 @@ class VerificationSuccessScreen extends StatelessWidget {
       timeStr = DateFormat('EEEE, h:mm a').format(date);
     }
 
+    void navigateToProfile() {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const ProfilePage(showBackButton: false)),
+        (route) => route.isFirst,
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -32,7 +40,7 @@ class VerificationSuccessScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.close, color: Colors.black),
-            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+            onPressed: navigateToProfile,
           ),
         ],
       ),
@@ -208,7 +216,7 @@ class VerificationSuccessScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                  onPressed: navigateToProfile,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF7CFF7C), // Design's neon green
                     foregroundColor: Colors.black,

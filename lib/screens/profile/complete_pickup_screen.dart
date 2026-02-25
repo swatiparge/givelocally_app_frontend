@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'verification_success_screen.dart';
 
 class CompletePickupScreen extends StatefulWidget {
   final Map<String, dynamic> donation;
@@ -75,11 +76,10 @@ class _CompletePickupScreenState extends State<CompletePickupScreen> {
 
       if (success) {
         if (mounted) {
-          Navigator.pop(context, true); // Return success to refresh list
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Verification successful! Donation completed."), 
-              backgroundColor: Colors.green
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VerificationSuccessScreen(donation: widget.donation),
             ),
           );
         }

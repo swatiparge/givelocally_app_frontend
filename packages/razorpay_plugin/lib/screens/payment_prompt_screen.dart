@@ -75,9 +75,9 @@ class _PaymentPromptScreenState extends State<PaymentPromptScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Payment Authorized'),
+        title: const Text('Payment Successful'),
         content: const Text(
-          'Your payment has been authorized. Pickup code will be sent shortly.',
+          'Your payment has been completed. Pickup code will be sent shortly.',
         ),
         actions: [
           TextButton(
@@ -138,7 +138,7 @@ class _PaymentPromptScreenState extends State<PaymentPromptScreen> {
               child: Column(
                 children: [
                   const Text(
-                    'Promise Fee',
+                    'Reservation Fee',
                     style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                   const SizedBox(height: 8),
@@ -152,7 +152,7 @@ class _PaymentPromptScreenState extends State<PaymentPromptScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Refunded after successful pickup',
+                    'This fee is non-refundable and helps us maintain the platform.',
                     style: TextStyle(fontSize: 14, color: Colors.grey),
                     textAlign: TextAlign.center,
                   ),
@@ -161,7 +161,7 @@ class _PaymentPromptScreenState extends State<PaymentPromptScreen> {
             ),
             const SizedBox(height: 32),
             const Text(
-              'By paying the promise fee, you confirm that you will pick up the item within 24 hours.',
+              'By paying the reservation fee, you confirm that you will pick up the item within 24 hours.',
               style: TextStyle(fontSize: 14, color: Colors.grey),
               textAlign: TextAlign.center,
             ),
