@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../services/auth_service.dart';
-import '../home/home_screen.dart';
-import 'phone_login_screen.dart';
-import 'location_confirmation_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/navigation_service.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
@@ -25,26 +23,19 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (!mounted) return;
 
-    final authService = Provider.of<AuthService>(context, listen: false);
+    // Use Riverpod to access AuthService
+    final authService = ref.read(authServiceProvider);
     final String nextStep = await authService.getNextStep();
 
     if (!mounted) return;
 
     if (nextStep == '/home') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
+      // Using GoRouter navigation
+      context.goHome();
     } else if (nextStep == '/location-setup') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LocationConfirmationScreen()),
-      );
+      context.goLocationSetup();
     } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const PhoneLoginScreen()),
-      );
+      context.goPhoneLogin();
     }
   }
 
@@ -64,9 +55,10 @@ class _SplashScreenState extends State<SplashScreen> {
                 color: Colors.green.shade100,
                 borderRadius: BorderRadius.circular(30),
               ),
-              child: Icon(Icons.volunteer_activism,
+              child: Icon(
+                Icons.volunteer_activism,
                 size: 60,
-                color: Colors.green.shade700
+                color: Colors.green.shade700,
               ),
             ),
             const SizedBox(height: 24),
@@ -81,10 +73,7 @@ class _SplashScreenState extends State<SplashScreen> {
             const SizedBox(height: 8),
             Text(
               "Connecting neighbors, sharing kindness",
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 48),
             const CircularProgressIndicator(

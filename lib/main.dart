@@ -1,22 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:givelocally_app/config/environment.dart';
-import 'package:provider/provider.dart';
-import 'package:flutter/foundation.dart';
-import 'firebase_options.dart';
-import 'services/auth_service.dart';
-import 'screens/auth/splash_screen.dart';
-import 'screens/donation/food_donation_screen.dart';
-import 'screens/donation/appliances_donation_screen.dart';
-import 'screens/donation/blood_request_screen.dart';
-import 'screens/donation/stationery_donation_screen.dart';
-import 'screens/home/donation_detail_screen.dart';
-import 'screens/home/reserve_item_screen.dart';
-import 'screens/home/home_screen.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
-import 'dart:io';
-import 'navigation/route_observer.dart';
+import 'routes/app_router.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,43 +10,34 @@ Future<void> main() async {
     await Firebase.initializeApp();
   }
 
-  runApp(const MyApp());
+  // Wrap app with ProviderScope for Riverpod
+  runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends StatelessWidget {
+/// Main App Widget with Riverpod + GoRouter
+///
+/// Phase 5: State Management Migration
+/// - Using Riverpod for state management
+/// - GoRouter for declarative navigation
+/// - Deep linking support enabled
+/// - Type-safe routes with constants
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => AuthService())],
-      child: MaterialApp(
-        title: 'GiveLocally',
-        debugShowCheckedModeBanner: false,
-        navigatorObservers: [routeObserver],
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4CAF50)),
-          appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
-        ),
-        initialRoute: '/',
-        routes: {
-          '/': (context) => const SplashScreen(),
-          '/home': (context) => HomeScreen(), // Removed const
-          '/post-food': (context) => const FoodDonationScreen(),
-          '/post-appliances': (context) => const AppliancesDonationScreen(),
-          '/post-blood': (context) => const BloodRequestScreen(),
-          '/post-stationery': (context) => const StationeryDonationScreen(),
-          '/donation-detail': (context) {
-            final Map<String, dynamic> donation = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-            return DonationDetailScreen(donation: donation);
-          },
-          '/reserve-item': (context) {
-            final Map<String, dynamic> donation = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-            return ReserveItemScreen(donation: donation);
-          },
-        },
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(routerProvider);
+
+    return MaterialApp.router(
+      title: 'GiveLocally',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4CAF50)),
+        appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
       ),
+      // Use GoRouter from Riverpod provider
+      routerConfig: router,
     );
   }
 }

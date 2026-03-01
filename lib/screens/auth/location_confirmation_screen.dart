@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/geolocation_service.dart';
-import '../../services/auth_service.dart';
+import '../../providers/auth_provider.dart';
 import '../../config/default_location.dart';
 import 'profile_setup_screen.dart';
 
-class LocationConfirmationScreen extends StatefulWidget {
+class LocationConfirmationScreen extends ConsumerStatefulWidget {
   const LocationConfirmationScreen({super.key});
 
   @override
-  State<LocationConfirmationScreen> createState() => _LocationConfirmationScreenState();
+  ConsumerState<LocationConfirmationScreen> createState() =>
+      _LocationConfirmationScreenState();
 }
 
-class _LocationConfirmationScreenState extends State<LocationConfirmationScreen> {
+class _LocationConfirmationScreenState
+    extends ConsumerState<LocationConfirmationScreen> {
   GoogleMapController? _mapController;
   LatLng _currentPos = const LatLng(kDefaultLat, kDefaultLng);
   String _addressTitle = "Detecting...";
@@ -54,7 +56,7 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
 
   Future<void> _updateLocation(LatLng latLng, {bool isDetected = false}) async {
     if (!mounted) return;
-    
+
     setState(() {
       _currentPos = latLng;
       _isDetected = isDetected;
@@ -62,14 +64,18 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
     });
 
     try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(latLng.latitude, latLng.longitude);
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        latLng.latitude,
+        latLng.longitude,
+      );
       if (placemarks.isNotEmpty && mounted) {
         Placemark place = placemarks.first;
         setState(() {
-          _addressTitle = place.subLocality?.isNotEmpty == true 
-              ? place.subLocality! 
+          _addressTitle = place.subLocality?.isNotEmpty == true
+              ? place.subLocality!
               : (place.locality ?? "Unknown Area");
-          _fullAddress = "${place.name}, ${place.locality}, ${place.postalCode}";
+          _fullAddress =
+              "${place.name}, ${place.locality}, ${place.postalCode}";
           _isReverseGeocoding = false;
         });
       }
@@ -89,7 +95,7 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
 
   Future<void> _onSearchSubmitted(String value) async {
     if (value.trim().isEmpty) return;
-    
+
     setState(() => _isSearching = true);
     _searchFocusNode.unfocus();
 
@@ -98,7 +104,7 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
       if (locations.isNotEmpty) {
         final loc = locations.first;
         final newPos = LatLng(loc.latitude, loc.longitude);
-        
+
         // IMPORTANT: Update the local state first
         setState(() {
           _currentPos = newPos;
@@ -107,16 +113,18 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
 
         // Then move the map
         await _mapController?.animateCamera(
-          CameraUpdate.newLatLngZoom(newPos, 16)
+          CameraUpdate.newLatLngZoom(newPos, 16),
         );
-        
+
         // Geocoding will be triggered by onCameraIdle
       } else {
         _showError("Location not found. Please try a more specific address.");
       }
     } catch (e) {
       debugPrint("Search error: $e");
-      _showError("Could not find location. Try entering City, State or Pincode.");
+      _showError(
+        "Could not find location. Try entering City, State or Pincode.",
+      );
     } finally {
       if (mounted) setState(() => _isSearching = false);
     }
@@ -128,9 +136,10 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
 
   Future<void> _confirmLocation() async {
     setState(() => _isLoading = true);
-    
+
     try {
-      final authService = Provider.of<AuthService>(context, listen: false);
+      // Corrected: Use Riverpod to access auth service
+      final authService = ref.read(authServiceProvider);
       final uid = authService.firebaseUser?.uid;
 
       if (uid == null) throw Exception("User not authenticated");
@@ -145,8 +154,8 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
 
       if (mounted) {
         Navigator.push(
-          context, 
-          MaterialPageRoute(builder: (c) => const ProfileSetupScreen())
+          context,
+          MaterialPageRoute(builder: (c) => const ProfileSetupScreen()),
         );
       }
     } catch (e) {
@@ -167,7 +176,10 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
         children: [
           // 1. Map Layer
           GoogleMap(
-            initialCameraPosition: CameraPosition(target: _currentPos, zoom: 15),
+            initialCameraPosition: CameraPosition(
+              target: _currentPos,
+              zoom: 15,
+            ),
             onMapCreated: (controller) => _mapController = controller,
             onCameraMove: (pos) {
               _currentPos = pos.target;
@@ -197,13 +209,22 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
                 children: [
                   Row(
                     children: [
-                      _circleBtn(Icons.arrow_back, () => Navigator.pop(context)),
+                      _circleBtn(
+                        Icons.arrow_back,
+                        () => Navigator.pop(context),
+                      ),
                       const Expanded(
                         child: Center(
-                          child: Text("Confirm Location", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          child: Text(
+                            "Confirm Location",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 40), 
+                      const SizedBox(width: 40),
                     ],
                   ),
                   if (_showManualSearch) ...[
@@ -223,11 +244,19 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     child: Text(
-                      _isReverseGeocoding || _isSearching ? "Locating..." : "Move map to adjust", 
-                      style: const TextStyle(color: Colors.white, fontSize: 12)
+                      _isReverseGeocoding || _isSearching
+                          ? "Locating..."
+                          : "Move map to adjust",
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
                     ),
                   ),
                   const Icon(Icons.location_on, color: Colors.red, size: 50),
@@ -251,31 +280,65 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20, spreadRadius: 5)],
+          boxShadow: [
+            BoxShadow(color: Colors.black12, blurRadius: 20, spreadRadius: 5),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
             Row(
               children: [
                 Expanded(
-                  child: Text(_addressTitle, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900), overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    _addressTitle,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 if (_isDetected) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4)),
-                    child: const Text("DETECTED", style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      "DETECTED",
+                      style: TextStyle(
+                        color: Colors.green,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ],
             ),
             const SizedBox(height: 4),
-            Text(_fullAddress, style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+            Text(
+              _fullAddress,
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+            ),
             const SizedBox(height: 20),
             _buildPrivacyNotice(),
             const SizedBox(height: 24),
@@ -283,13 +346,22 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF66BB6A),
                 minimumSize: const Size(double.infinity, 56),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
+                ),
                 elevation: 0,
               ),
               onPressed: _isLoading ? null : _confirmLocation,
-              child: _isLoading 
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text("Confirm Location", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+              child: _isLoading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text(
+                      "Confirm Location",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
             ),
             const SizedBox(height: 16),
             Center(
@@ -303,8 +375,13 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
                   }
                 },
                 child: Text(
-                  _showManualSearch ? "Hide manual search" : "Enter address manually instead",
-                  style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+                  _showManualSearch
+                      ? "Hide manual search"
+                      : "Enter address manually instead",
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -316,20 +393,30 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
 
   Widget _buildPrivacyNotice() => Container(
     padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(color: const Color(0xFFF0F7FF), borderRadius: BorderRadius.circular(16)),
-    child: Row(children: [
-      const Icon(Icons.verified_user, color: Colors.blue, size: 20),
-      const SizedBox(width: 12),
-      Expanded(child: Text("Privacy & Trust: Your exact location is private. We only show an approximate zone.", style: TextStyle(fontSize: 11, color: Colors.blue.shade800))),
-    ]),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF0F7FF),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.verified_user, color: Colors.blue, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            "Privacy & Trust: Your exact location is private. We only show an approximate zone.",
+            style: TextStyle(fontSize: 11, color: Colors.blue.shade800),
+          ),
+        ),
+      ],
+    ),
   );
 
   Widget _buildSearchBar() => Container(
     padding: const EdgeInsets.symmetric(horizontal: 16),
     decoration: BoxDecoration(
-      color: Colors.white, 
-      borderRadius: BorderRadius.circular(16), 
-      boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)]
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
     ),
     child: Row(
       children: [
@@ -340,14 +427,18 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
             controller: _searchController,
             focusNode: _searchFocusNode,
             decoration: const InputDecoration(
-              hintText: "Search area, city or pincode", 
-              border: InputBorder.none, 
+              hintText: "Search area, city or pincode",
+              border: InputBorder.none,
             ),
             onSubmitted: _onSearchSubmitted,
           ),
         ),
         if (_isSearching)
-          const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+          const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
         else if (_searchController.text.isNotEmpty)
           IconButton(
             icon: const Icon(Icons.clear, size: 20),
@@ -358,7 +449,10 @@ class _LocationConfirmationScreenState extends State<LocationConfirmationScreen>
   );
 
   Widget _circleBtn(IconData icon, VoidCallback tap) => CircleAvatar(
-    backgroundColor: Colors.white, 
-    child: IconButton(icon: Icon(icon, color: Colors.black), onPressed: tap)
+    backgroundColor: Colors.white,
+    child: IconButton(
+      icon: Icon(icon, color: Colors.black),
+      onPressed: tap,
+    ),
   );
 }

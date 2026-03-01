@@ -30,7 +30,10 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
 
     setState(() => _isLoadingDonor = true);
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(donorId).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(donorId)
+          .get();
       if (doc.exists && mounted) {
         final donorData = doc.data();
         setState(() {
@@ -48,7 +51,7 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
   String _getTimeRemaining() {
     final expiresAt = _data['pickup_code_expires'];
     if (expiresAt == null) return "23h 59m";
-    
+
     DateTime expiry;
     if (expiresAt is Timestamp) {
       expiry = expiresAt.toDate();
@@ -60,7 +63,7 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
 
     final diff = expiry.difference(DateTime.now());
     if (diff.isNegative) return "Expired";
-    
+
     final hours = diff.inHours;
     final minutes = diff.inMinutes % 60;
     return "${hours}h ${minutes}m";
@@ -72,7 +75,8 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
     final donorName = _data['donorName'] ?? "Donor";
     final pickupCode = _data['pickup_code']?.toString() ?? "0000";
     final donorPhoto = _data['donorPhotoUrl'] ?? "";
-    final address = _data['pickupAddress'] ?? _data['address'] ?? "Address details in chat";
+    final address =
+        _data['pickupAddress'] ?? _data['address'] ?? "Address details in chat";
     final imageUrl = _data['donationImage'] ?? _data['image'] ?? "";
     final category = _data['category'] ?? "Item";
 
@@ -87,7 +91,11 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
         ),
         title: const Text(
           "Pickup Confirmed",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
         ),
         centerTitle: true,
       ),
@@ -101,13 +109,26 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: const BoxDecoration(color: Color(0xFFE8F5E9), shape: BoxShape.circle),
-                    child: const Icon(Icons.check, color: Color(0xFF4CAF50), size: 32),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE8F5E9),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      color: Color(0xFF4CAF50),
+                      size: 32,
+                    ),
                   ),
                   const SizedBox(height: 16),
-                  const Text("Payment Successful h", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text(
+                    "Payment Successful h",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 4),
-                  Text("You can now pick up your item", style: TextStyle(color: Colors.grey.shade600)),
+                  Text(
+                    "You can now pick up your item",
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
                 ],
               ),
             ),
@@ -121,26 +142,61 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: const Color(0xFFF1F1F1)),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Column(
                 children: [
-                  const Text("YOUR PICKUP CODE", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
+                  const Text(
+                    "YOUR PICKUP CODE",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                      letterSpacing: 1,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     pickupCode.split('').join(' '),
-                    style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, letterSpacing: 8),
+                    style: const TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 8,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF3E0),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.access_time, size: 14, color: Color(0xFFE65100)),
+                        const Icon(
+                          Icons.access_time,
+                          size: 14,
+                          color: Color(0xFFE65100),
+                        ),
                         const SizedBox(width: 6),
-                        Text("Valid for: ${_getTimeRemaining()}", style: const TextStyle(color: Color(0xFFE65100), fontSize: 12, fontWeight: FontWeight.bold)),
+                        Text(
+                          "Valid for: ${_getTimeRemaining()}",
+                          style: const TextStyle(
+                            color: Color(0xFFE65100),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -151,14 +207,20 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
                         child: OutlinedButton.icon(
                           onPressed: () {
                             Clipboard.setData(ClipboardData(text: pickupCode));
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Code copied to clipboard")));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Code copied to clipboard"),
+                              ),
+                            );
                           },
                           icon: const Icon(Icons.copy, size: 18),
                           label: const Text("Copy Code"),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             side: BorderSide(color: Colors.grey.shade200),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
@@ -167,16 +229,23 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
                         child: OutlinedButton.icon(
                           onPressed: () {
                             // Simple share text
-                            final text = "My GiveLocally Pickup Code for $title is: $pickupCode. Address: $address";
+                            final text =
+                                "My GiveLocally Pickup Code for $title is: $pickupCode. Address: $address";
                             Clipboard.setData(ClipboardData(text: text));
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Details copied to share")));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Details copied to share"),
+                              ),
+                            );
                           },
                           icon: const Icon(Icons.share, size: 18),
                           label: const Text("Share Code"),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             side: BorderSide(color: Colors.grey.shade200),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
@@ -202,22 +271,48 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
                       CircleAvatar(
                         radius: 20,
                         backgroundColor: const Color(0xFFE3F2FD),
-                        backgroundImage: donorPhoto.isNotEmpty ? NetworkImage(donorPhoto) : null,
-                        child: donorPhoto.isEmpty ? const Icon(Icons.person, color: Colors.blue) : null,
+                        backgroundImage: donorPhoto.isNotEmpty
+                            ? NetworkImage(donorPhoto)
+                            : null,
+                        child: donorPhoto.isEmpty
+                            ? const Icon(Icons.person, color: Colors.blue)
+                            : null,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(donorName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text(
+                              donorName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
                             Row(
                               children: [
-                                const Text("Donor", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                                const Text(
+                                  "Donor",
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
                                 const SizedBox(width: 4),
-                                const Icon(Icons.star, color: Colors.amber, size: 12),
+                                const Icon(
+                                  Icons.star,
+                                  color: Colors.amber,
+                                  size: 12,
+                                ),
                                 const SizedBox(width: 2),
-                                Text(_donorRating ?? "4.8", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                Text(
+                                  _donorRating ?? "4.8",
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
                               ],
                             ),
                           ],
@@ -230,7 +325,9 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
                             // launchUrl(Uri.parse("tel:$_donorPhone"));
                           },
                           icon: const Icon(Icons.phone, color: Colors.green),
-                          style: IconButton.styleFrom(backgroundColor: const Color(0xFFE8F5E9)),
+                          style: IconButton.styleFrom(
+                            backgroundColor: const Color(0xFFE8F5E9),
+                          ),
                         ),
                     ],
                   ),
@@ -244,18 +341,46 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text("Pickup Address", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            const Text(
+                              "Pickup Address",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
                             const SizedBox(height: 4),
-                            Text(address, style: TextStyle(color: Colors.grey.shade600, fontSize: 13, height: 1.4)),
+                            Text(
+                              address,
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
                             const SizedBox(height: 8),
                             TextButton(
                               onPressed: () {},
-                              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
                               child: const Row(
                                 children: [
-                                  Text("GET DIRECTIONS", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
+                                  Text(
+                                    "GET DIRECTIONS",
+                                    style: TextStyle(
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
                                   SizedBox(width: 4),
-                                  Icon(Icons.north_east, color: Colors.green, size: 14),
+                                  Icon(
+                                    Icons.north_east,
+                                    color: Colors.green,
+                                    size: 14,
+                                  ),
                                 ],
                               ),
                             ),
@@ -272,7 +397,15 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
             // Item Details
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text("ITEM DETAILS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
+              child: Text(
+                "ITEM DETAILS",
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                  letterSpacing: 0.5,
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             Container(
@@ -287,17 +420,39 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: imageUrl.isNotEmpty && imageUrl.startsWith('http')
-                      ? Image.network(imageUrl, width: 60, height: 60, fit: BoxFit.cover)
-                      : Container(width: 60, height: 60, color: Colors.grey.shade100, child: const Icon(Icons.image, color: Colors.grey)),
+                        ? Image.network(
+                            imageUrl,
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            width: 60,
+                            height: 60,
+                            color: Colors.grey.shade100,
+                            child: const Icon(Icons.image, color: Colors.grey),
+                          ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
                         const SizedBox(height: 4),
-                        Text("$category • Reserved", style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                        Text(
+                          "$category • Reserved",
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 13,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -315,9 +470,14 @@ class _PickupCodeScreenState extends State<PickupCodeScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0F172A),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
                 ),
-                child: const Text("Done", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                child: const Text(
+                  "Done",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
               ),
             ),
             const SizedBox(height: 24),

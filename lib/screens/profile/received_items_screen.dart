@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
-import '../../services/auth_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 import 'pickup_code_screen.dart';
+import '../chat/chat_screen.dart';
 
-class ReceivedItemsScreen extends StatefulWidget {
+class ReceivedItemsScreen extends ConsumerStatefulWidget {
   const ReceivedItemsScreen({super.key});
 
   @override
-  State<ReceivedItemsScreen> createState() => _ReceivedItemsScreenState();
+  ConsumerState<ReceivedItemsScreen> createState() => _ReceivedItemsScreenState();
 }
 
-class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> with SingleTickerProviderStateMixin {
+class _ReceivedItemsScreenState extends ConsumerState<ReceivedItemsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiService _apiService = ApiService();
   
@@ -41,8 +41,7 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> with SingleTi
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context);
-    final uid = authService.firebaseUser?.uid;
+    final uid = ref.watch(userIdProvider);
     
     debugPrint("DEBUG: ReceivedItemsScreen build() called. User ID: $uid");
 
@@ -216,6 +215,7 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> with SingleTi
     final donorName = data['donorName'] ?? "Donor";
     final donorPhoto = data['donorPhotoUrl'] ?? "";
     final imageUrl = data['donationImage'] ?? data['image'] ?? "";
+    final donationId = data['donationId'];
     
     // Status handling based on screenshot
     final rawStatus = data['status']?.toString().toUpperCase() ?? (isPending ? "WAITING PICKUP" : "COMPLETED");
@@ -326,7 +326,20 @@ class _ReceivedItemsScreenState extends State<ReceivedItemsScreen> with SingleTi
               SizedBox(
                 width: 110,
                 child: OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    if (donationId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatScreen(
+                            donationId: donationId.toString(),
+                            itemName: title,
+                            itemImage: imageUrl,
+                          ),
+                        ),
+                      );
+                    }
+                  },
                   icon: const Icon(Icons.chat_bubble_outline, size: 16),
                   label: const Text("Chat", style: TextStyle(fontSize: 13)),
                   style: OutlinedButton.styleFrom(

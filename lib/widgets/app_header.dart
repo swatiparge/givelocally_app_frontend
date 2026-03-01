@@ -1,9 +1,11 @@
 // lib/widgets/app_header.dart
 
 import 'package:flutter/material.dart';
+import '../screens/notifications/notifications_screen.dart';
 
 class AppHeader extends StatelessWidget implements PreferredSizeWidget {
-  final String location;final VoidCallback onNotificationTap;
+  final String location;
+  final VoidCallback onNotificationTap;
   final VoidCallback onMenuTap;
 
   const AppHeader({
@@ -69,14 +71,18 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
           ),
 
           // --- RIGHT SIDE: NOTIFICATIONS & MENU (Clustered) ---
-          // This Row ensures exactly two items sit side-by-side on the far right
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               // 1. Notification Bell
               _buildHeaderAction(
                 icon: Icons.notifications_none_outlined,
-                onTap: onNotificationTap,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+                  );
+                },
                 hasBadge: true,
               ),
               const SizedBox(width: 10), // Controlled spacing between icons

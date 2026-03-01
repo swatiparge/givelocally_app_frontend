@@ -1,10 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:givelocally_app/utils/constants.dart';
-import 'package:givelocally_app/services/auth_service.dart';
+import '../../providers/auth_provider.dart';
 import 'package:givelocally_app/services/storage_service.dart';
 import 'package:givelocally_app/screens/home/home_screen.dart';
 
@@ -13,14 +13,14 @@ import 'package:givelocally_app/screens/home/home_screen.dart';
 // New users complete their profile, existing users edit
 // ============================================
 
-class ProfileSetupScreen extends StatefulWidget {
+class ProfileSetupScreen extends ConsumerStatefulWidget {
   const ProfileSetupScreen({super.key});
 
   @override
-  State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
+  ConsumerState<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
 }
 
-class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
+class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   String? _selectedBloodGroup;
@@ -47,7 +47,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     super.initState();
     // Pre-fill data if user already has a profile
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authService = Provider.of<AuthService>(context, listen: false);
+      // Use Riverpod to access AuthService
+      final authService = ref.read(authServiceProvider);
       final user = authService.userModel;
 
       if (user != null) {
@@ -112,7 +113,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final authService = Provider.of<AuthService>(context, listen: false);
+      // Use Riverpod to access AuthService
+      final authService = ref.read(authServiceProvider);
       final uid = authService.firebaseUser?.uid;
 
       if (uid == null) {

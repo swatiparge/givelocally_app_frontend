@@ -1,29 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
-import 'package:provider/provider.dart';
-import 'package:givelocally_app/services/auth_service.dart';
+import '../../providers/auth_provider.dart';
 import 'package:givelocally_app/utils/constants.dart';
 import 'location_confirmation_screen.dart';
 import '../home/home_screen.dart';
 
-class OTPScreen extends StatefulWidget {
+class OTPScreen extends ConsumerStatefulWidget {
   final String phoneNumber;
 
-  const OTPScreen({
-    super.key,
-    required this.phoneNumber,
-  });
+  const OTPScreen({super.key, required this.phoneNumber});
 
   @override
-  State<OTPScreen> createState() => _OTPScreenState();
+  ConsumerState<OTPScreen> createState() => _OTPScreenState();
 }
 
-class _OTPScreenState extends State<OTPScreen> {
+class _OTPScreenState extends ConsumerState<OTPScreen> {
   final TextEditingController _otpController = TextEditingController();
   bool _isLoading = false;
   int _resendTimer = 60;
   bool _canResend = false;
-  bool _disposed = false;  // ✅ Track disposal state
+  bool _disposed = false; // ✅ Track disposal state
 
   @override
   void initState() {
@@ -33,7 +30,7 @@ class _OTPScreenState extends State<OTPScreen> {
 
   @override
   void dispose() {
-    _disposed = true;  // ✅ Mark as disposed FIRST
+    _disposed = true; // ✅ Mark as disposed FIRST
     _otpController.dispose();
     super.dispose();
   }
@@ -41,10 +38,10 @@ class _OTPScreenState extends State<OTPScreen> {
   // ==========================================
   // RESEND TIMER (FIXED)
   // ==========================================
-  
+
   void _startResendTimer() {
-    if (_disposed) return;  // ✅ Don't start if disposed
-    
+    if (_disposed) return; // ✅ Don't start if disposed
+
     if (mounted) {
       setState(() {
         _resendTimer = 60;
@@ -58,9 +55,9 @@ class _OTPScreenState extends State<OTPScreen> {
   void _runTimer() async {
     while (_resendTimer > 0 && !_disposed && mounted) {
       await Future.delayed(const Duration(seconds: 1));
-      
+
       if (_disposed || !mounted) break;
-      
+
       setState(() {
         _resendTimer--;
         if (_resendTimer == 0) {
@@ -73,15 +70,16 @@ class _OTPScreenState extends State<OTPScreen> {
   // ==========================================
   // VERIFY OTP
   // ==========================================
-  
+
   Future<void> _verifyOTP(String otp) async {
     if (otp.length != 6 || _disposed) return;
 
     setState(() => _isLoading = true);
 
     try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      
+      // Use Riverpod to access AuthService
+      final authService = ref.read(authServiceProvider);
+
       bool success = await authService.verifyOTP(otp);
 
       if (!mounted || _disposed) return;
@@ -98,9 +96,7 @@ class _OTPScreenState extends State<OTPScreen> {
         } else {
           // Existing user → Home
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => const HomeScreen(),
-            ),
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
           );
         }
       } else {
@@ -121,15 +117,16 @@ class _OTPScreenState extends State<OTPScreen> {
   // ==========================================
   // RESEND OTP
   // ==========================================
-  
+
   Future<void> _resendOTP() async {
     if (!_canResend || _disposed) return;
 
     setState(() => _isLoading = true);
 
     try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      
+      // Use Riverpod to access AuthService
+      final authService = ref.read(authServiceProvider);
+
       bool success = await authService.sendOTPWithFirebase(widget.phoneNumber);
 
       if (!mounted || _disposed) return;
@@ -156,15 +153,12 @@ class _OTPScreenState extends State<OTPScreen> {
   // ==========================================
   // SHOW ERROR
   // ==========================================
-  
+
   void _showError(String message) {
     if (_disposed || !mounted) return;
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.error,
-      ),
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
     );
   }
 
@@ -191,21 +185,18 @@ class _OTPScreenState extends State<OTPScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: AppSpacing.xl),
-              
-              const Text(
-                'Verify your phone',
-                style: AppTextStyles.heading1,
-              ),
-              
+
+              const Text('Verify your phone', style: AppTextStyles.heading1),
+
               const SizedBox(height: AppSpacing.sm),
-              
+
               Text(
                 'We sent an OTP to ${widget.phoneNumber}',
                 style: AppTextStyles.bodySecondary,
               ),
-              
+
               const SizedBox(height: AppSpacing.xl),
-              
+
               // OTP INPUT
               PinCodeTextField(
                 appContext: context,
@@ -235,18 +226,16 @@ class _OTPScreenState extends State<OTPScreen> {
                 onCompleted: _verifyOTP,
                 onChanged: (_) {},
               ),
-              
+
               const SizedBox(height: AppSpacing.xl),
-              
+
               if (_isLoading)
                 const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColors.primary,
-                  ),
+                  child: CircularProgressIndicator(color: AppColors.primary),
                 ),
-              
+
               const SizedBox(height: AppSpacing.lg),
-              
+
               // RESEND OTP
               Center(
                 child: _canResend
@@ -269,9 +258,9 @@ class _OTPScreenState extends State<OTPScreen> {
                         ),
                       ),
               ),
-              
+
               const SizedBox(height: AppSpacing.lg),
-              
+
               // CHANGE NUMBER
               Center(
                 child: TextButton(
@@ -282,10 +271,7 @@ class _OTPScreenState extends State<OTPScreen> {
                   },
                   child: const Text(
                     'Change phone number',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.primary,
-                    ),
+                    style: TextStyle(fontSize: 14, color: AppColors.primary),
                   ),
                 ),
               ),

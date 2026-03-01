@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../services/auth_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/ListView/urgent_blood_request_card.dart';
 
-class ViewAllDonationsScreen extends StatefulWidget {
+class ViewAllDonationsScreen extends ConsumerStatefulWidget {
   final String title;
   final String category;
   final List<String>? categories;
@@ -21,10 +21,10 @@ class ViewAllDonationsScreen extends StatefulWidget {
   });
 
   @override
-  State<ViewAllDonationsScreen> createState() => _ViewAllDonationsScreenState();
+  ConsumerState<ViewAllDonationsScreen> createState() => _ViewAllDonationsScreenState();
 }
 
-class _ViewAllDonationsScreenState extends State<ViewAllDonationsScreen> {
+class _ViewAllDonationsScreenState extends ConsumerState<ViewAllDonationsScreen> {
   late Future<List<dynamic>> _fetchFuture;
   final ApiService _apiService = ApiService();
 
@@ -56,8 +56,7 @@ class _ViewAllDonationsScreenState extends State<ViewAllDonationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final currentUserId = authService.firebaseUser?.uid;
+    final currentUserId = ref.watch(userIdProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),

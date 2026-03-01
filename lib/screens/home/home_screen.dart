@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../services/auth_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/app_header.dart';
 import '../../widgets/main_bottom_nav.dart'; // Footer
 import '../../widgets/home_search_bar.dart';
@@ -12,24 +12,28 @@ import 'map_view_screen.dart';
 import '../../navigation/route_observer.dart';
 import '../../config/default_location.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:geocoding/geocoding.dart';
+// geocoding removed - cost optimization (AGENTS.md 8.3.2)
 import '../../services/geolocation_service.dart';
-import '../auth/profile_setup_screen.dart';
+
 import '../profile/profile_page.dart';
 import '../profile/my_donations_screen.dart';
 import '../profile/received_items_screen.dart';
+import '../chat/chat_list_screen.dart';
+import '../donation/request_item_screen.dart';
+import 'community_coming_soon_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with RouteAware {
+class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _currentIndex = 0;
   bool _isListView = true;
+  String _searchQuery = "";
 
   String _currentAddress = kDefaultAddress;
   LatLng _currentPosition = const LatLng(kDefaultLat, kDefaultLng);
@@ -45,25 +49,13 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     if (pos == null || !mounted) return;
 
     final latLng = LatLng(pos.latitude, pos.longitude);
-    String? addr;
-    try {
-      final placemarks = await placemarkFromCoordinates(
-        latLng.latitude,
-        latLng.longitude,
-      );
-      if (placemarks.isNotEmpty) {
-        final p = placemarks.first;
-        final parts = <String>[
-          if ((p.subLocality ?? '').trim().isNotEmpty) p.subLocality!.trim(),
-          if ((p.locality ?? '').trim().isNotEmpty) p.locality!.trim(),
-        ];
-        if (parts.isNotEmpty) addr = parts.join(', ');
-      }
-    } catch (_) {}
 
+    // COST OPTIMIZATION: Do NOT call geocoding on map load (AGENTS.md 8.3.2)
+    // Geocoding should ONLY be called when user confirms a location
+    // This saves ~₹500/month at scale
     setState(() {
       _currentPosition = latLng;
-      _currentAddress = addr ?? _currentAddress;
+      // Address will be shown from user?.area in build()
     });
   }
 
@@ -105,8 +97,13 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     );
   }
 
-  Widget _drawerItem(IconData icon, String title, VoidCallback onTap,
-      {bool hasNotification = false, bool isComingSoon = false}) {
+  Widget _drawerItem(
+    IconData icon,
+    String title,
+    VoidCallback onTap, {
+    bool hasNotification = false,
+    bool isComingSoon = false,
+  }) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 24),
       leading: Icon(icon, color: Colors.blueGrey.shade700, size: 24),
@@ -153,7 +150,9 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
               width: 8,
               height: 8,
               decoration: const BoxDecoration(
-                  color: Colors.redAccent, shape: BoxShape.circle),
+                color: Colors.redAccent,
+                shape: BoxShape.circle,
+              ),
             ),
           const SizedBox(width: 8),
           Icon(Icons.chevron_right, color: Colors.grey.shade300, size: 20),
@@ -165,12 +164,17 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context);
-    final user = authService.userModel;
+    final user = ref
+        .watch(userModelProvider)
+        .when(
+          data: (user) => user,
+          loading: () => null,
+          error: (_, __) => null,
+        );
 
     return Scaffold(
       key: _scaffoldKey,
-      appBar: _currentIndex == 3
+      appBar: (_currentIndex == 3 || _currentIndex == 2 || _currentIndex == 1)
           ? null
           : AppHeader(
               location: user?.area ?? _currentAddress,
@@ -212,7 +216,9 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                               radius: 35,
                               backgroundImage: user?.profilePicture != null
                                   ? NetworkImage(user!.profilePicture!)
-                                  : const NetworkImage('https://via.placeholder.com/150'),
+                                  : const NetworkImage(
+                                      'https://via.placeholder.com/150',
+                                    ),
                             ),
                           ),
                           Positioned(
@@ -224,16 +230,21 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                               decoration: BoxDecoration(
                                 color: const Color(0xFF81C784),
                                 shape: BoxShape.circle,
-                                border:
-                                Border.all(color: Colors.white, width: 2),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
                               ),
                             ),
                           ),
                         ],
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close,
-                            color: Colors.white70, size: 28),
+                        icon: const Icon(
+                          Icons.close,
+                          color: Colors.white70,
+                          size: 28,
+                        ),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ],
@@ -252,22 +263,28 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.emoji_events,
-                                color: Colors.amber, size: 14),
+                            const Icon(
+                              Icons.emoji_events,
+                              color: Colors.amber,
+                              size: 14,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               "${user?.karmaPoints ?? 0} Karma",
                               style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold),
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ),
@@ -276,7 +293,9 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                       Text(
                         "Level ${((user?.karmaPoints ?? 0) / 100).floor() + 1} Donor",
                         style: TextStyle(
-                            color: Colors.white.withOpacity(0.8), fontSize: 12),
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -294,39 +313,63 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                     Navigator.pop(context); // Close drawer
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const ProfilePage()),
+                      MaterialPageRoute(
+                        builder: (context) => const ProfilePage(),
+                      ),
                     );
                   }),
                   _drawerItem(
-                      Icons.volunteer_activism_outlined, "My Donations", () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const MyDonationsScreen()),
-                        );
-                      }),
+                    Icons.volunteer_activism_outlined,
+                    "My Donations",
+                    () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MyDonationsScreen(),
+                        ),
+                      );
+                    },
+                  ),
                   _drawerItem(
-                      Icons.inventory_2_outlined, "My Received Items", () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const ReceivedItemsScreen()),
-                        );
-                      }),
+                    Icons.inventory_2_outlined,
+                    "My Received Items",
+                    () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ReceivedItemsScreen(),
+                        ),
+                      );
+                    },
+                  ),
                   _drawerItem(
-                      Icons.shopping_bag_outlined, "Request an Item", () {
-                        Navigator.pop(context);
-                        // TODO: Implement Request an Item navigation
-                      }),
+                    Icons.shopping_bag_outlined,
+                    "Request an Item",
+                    () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RequestItemScreen(),
+                        ),
+                      );
+                    },
+                  ),
 
                   const Divider(height: 32, indent: 24, endIndent: 24),
 
                   _drawerSectionTitle("COMMUNITY"),
-                  _drawerItem(Icons.stars_outlined, "Karma & Badges", () {
-                    Navigator.pop(context);
-                  },
-                      hasNotification: true,
-                      isComingSoon: true),
+                  _drawerItem(
+                    Icons.stars_outlined,
+                    "Karma & Badges",
+                    () {
+                      Navigator.pop(context);
+                    },
+                    hasNotification: true,
+                    isComingSoon: true,
+                  ),
                   _drawerItem(Icons.leaderboard_outlined, "Leaderboard", () {
                     Navigator.pop(context);
                   }, isComingSoon: true),
@@ -337,10 +380,9 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                   _drawerItem(Icons.settings_outlined, "Settings", () {
                     Navigator.pop(context);
                   }, isComingSoon: true),
-                  _drawerItem(
-                      Icons.help_outline_rounded, "Help & Support", () {
-                        Navigator.pop(context);
-                      }),
+                  _drawerItem(Icons.help_outline_rounded, "Help & Support", () {
+                    Navigator.pop(context);
+                  }),
                 ],
               ),
             ),
@@ -350,9 +392,11 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
               child: InkWell(
                 onTap: () async {
-                  await authService.signOut();
+                  await ref.read(authServiceProvider).signOut();
                   if (context.mounted) {
-                    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                    Navigator.of(
+                      context,
+                    ).pushNamedAndRemoveUntil('/', (route) => false);
                   }
                 },
                 child: Row(
@@ -378,7 +422,11 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
         children: [
           if (_currentIndex == 0)
             HomeSearchBar(
-              onSearchChanged: (value) {},
+              onSearchChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
               onFilterTap: () {},
             ),
           if (_currentIndex == 0)
@@ -392,12 +440,13 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
               children: [
                 _isListView
                     ? HomeListContent(
-                  lat: _currentPosition.latitude,
-                  lng: _currentPosition.longitude,
-                )
+                        lat: _currentPosition.latitude,
+                        lng: _currentPosition.longitude,
+                        searchQuery: _searchQuery,
+                      )
                     : MapViewScreen(initialPosition: _currentPosition),
-                const Center(child: Text("Community Tab")),
-                const Center(child: Text("Chat Tab")),
+                const CommunityComingSoonScreen(),
+                const ChatListScreen(),
                 const ProfilePage(showBackButton: false),
               ],
             ),

@@ -1,7 +1,6 @@
-// lib/widgets/home/home_search_bar.dart
 import 'package:flutter/material.dart';
 
-class HomeSearchBar extends StatelessWidget {
+class HomeSearchBar extends StatefulWidget {
   final VoidCallback onFilterTap;
   final Function(String) onSearchChanged;
 
@@ -12,9 +11,33 @@ class HomeSearchBar extends StatelessWidget {
   });
 
   @override
+  State<HomeSearchBar> createState() => _HomeSearchBarState();
+}
+
+class _HomeSearchBarState extends State<HomeSearchBar> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onClear() {
+    _controller.clear();
+    widget.onSearchChanged("");
+    FocusScope.of(context).unfocus(); // Clear focus to return to home screen
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
-      // Padding outside the search bar
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -28,7 +51,10 @@ class HomeSearchBar extends StatelessWidget {
         ],
       ),
       child: TextField(
-        onChanged: onSearchChanged,
+        controller: _controller,
+        onChanged: widget.onSearchChanged,
+        onSubmitted: (_) => FocusScope.of(context).unfocus(),
+        textInputAction: TextInputAction.search,
         decoration: InputDecoration(
           hintText: "Search furniture, food, books...",
           hintStyle: TextStyle(
@@ -40,16 +66,23 @@ class HomeSearchBar extends StatelessWidget {
             color: Colors.grey.shade400,
             size: 22,
           ),
-          // Filter Icon on the right
-          suffixIcon: Container(
-            margin: const EdgeInsets.only(right: 8),
-            child: IconButton(
-              icon: Icon(
-                Icons.tune, // Matches the filter/settings icon in design
-                color: Colors.grey.shade600,
+          suffixIcon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_controller.text.isNotEmpty)
+                IconButton(
+                  icon: Icon(Icons.clear, color: Colors.grey.shade400, size: 20),
+                  onPressed: _onClear,
+                ),
+              IconButton(
+                icon: Icon(
+                  Icons.tune,
+                  color: Colors.grey.shade600,
+                ),
+                onPressed: widget.onFilterTap,
               ),
-              onPressed: onFilterTap,
-            ),
+              const SizedBox(width: 4),
+            ],
           ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 15),
