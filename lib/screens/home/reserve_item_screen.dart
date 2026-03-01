@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:razorpay_auth_capture/razorpay_auth_capture.dart';
-import '../../services/auth_service.dart';
+import '../../providers/auth_provider.dart';
 
-class ReserveItemScreen extends StatefulWidget {
+class ReserveItemScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> donation;
 
   const ReserveItemScreen({super.key, required this.donation});
 
   @override
-  State<ReserveItemScreen> createState() => _ReserveItemScreenState();
+  ConsumerState<ReserveItemScreen> createState() => _ReserveItemScreenState();
 }
 
-class _ReserveItemScreenState extends State<ReserveItemScreen> {
+class _ReserveItemScreenState extends ConsumerState<ReserveItemScreen> {
   late Razorpay _razorpay;
   late PaymentService _paymentService;
   bool _isLoading = false;
@@ -29,11 +29,13 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
 
-    _paymentService = PaymentService(const RazorpayConfig(
-      keyId: 'rzp_test_SIILHau3fDK8ZR', // Replace with real key
-      amount: 900, // ₹9.00 in paise
-      merchantName: 'GiveLocally',
-    ));
+    _paymentService = PaymentService(
+      const RazorpayConfig(
+        keyId: 'rzp_test_SIILHau3fDK8ZR', // Replace with real key
+        amount: 900, // ₹9.00 in paise
+        merchantName: 'GiveLocally',
+      ),
+    );
   }
 
   @override
@@ -56,8 +58,7 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
 
   Future<void> _processPayment() async {
     setState(() => _isLoading = true);
-    final auth = Provider.of<AuthService>(context, listen: false);
-    final user = auth.userModel;
+    final user = ref.read(userModelProvider).valueOrNull;
 
     if (user == null) {
       _showErrorDialog('Please log in to reserve items');
@@ -65,7 +66,8 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
       return;
     }
 
-    final donationId = widget.donation['id'] ?? widget.donation['donationId'] ?? '';
+    final donationId =
+        widget.donation['id'] ?? widget.donation['donationId'] ?? '';
 
     try {
       await _paymentService.startPayment(
@@ -80,7 +82,7 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
             'order_id': orderId,
             'description': 'Reservation Fee',
             'prefill': {'contact': user.phone, 'email': user.email},
-            'theme': {'color': '#66BB6A'}
+            'theme': {'color': '#66BB6A'},
           };
           _razorpay.open(options);
         },
@@ -105,27 +107,46 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
           children: [
             Icon(Icons.check_circle, color: primaryGreen, size: 64),
             const SizedBox(height: 16),
-            const Text("Reservation Confirmed!", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const Text(
+              "Reservation Confirmed!",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
             const SizedBox(height: 8),
-            const Text("Your item has been reserved successfully.", textAlign: TextAlign.center),
+            const Text(
+              "Your item has been reserved successfully.",
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: Text("OK", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold))),
+          TextButton(
+            onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+            child: Text(
+              "OK",
+              style: TextStyle(
+                color: primaryGreen,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
   void _showErrorDialog(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.redAccent));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final title = widget.donation['title'] ?? 'Item';
     final distance = widget.donation['distance'] ?? '0.5';
-    final category = (widget.donation['category'] ?? 'Others').toString().toUpperCase();
+    final category = (widget.donation['category'] ?? 'Others')
+        .toString()
+        .toUpperCase();
     final images = widget.donation['images'] as List?;
     final imageUrl = (images != null && images.isNotEmpty) ? images[0] : '';
 
@@ -134,8 +155,18 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black), onPressed: () => Navigator.pop(context)),
-        title: const Text('Confirm Reservation', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Confirm Reservation',
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
         centerTitle: true,
       ),
       body: Column(
@@ -148,7 +179,15 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
                 children: [
                   _buildItemCard(imageUrl, title, distance, category),
                   const SizedBox(height: 32),
-                  const Text("PAYMENT SUMMARY", style: TextStyle(color: Colors.blueGrey, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                  const Text(
+                    "PAYMENT SUMMARY",
+                    style: TextStyle(
+                      color: Colors.blueGrey,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   _buildPaymentSummaryCard(),
                   const SizedBox(height: 24),
@@ -163,22 +202,43 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
     );
   }
 
-  Widget _buildItemCard(String imageUrl, String title, dynamic distance, String category) {
+  Widget _buildItemCard(
+    String imageUrl,
+    String title,
+    dynamic distance,
+    String category,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.grey.shade100),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: imageUrl.isNotEmpty
-                ? Image.network(imageUrl, width: 90, height: 90, fit: BoxFit.cover)
-                : Container(width: 90, height: 90, color: backgroundGrey, child: const Icon(Icons.image_outlined, color: Colors.grey)),
+                ? Image.network(
+                    imageUrl,
+                    width: 90,
+                    height: 90,
+                    fit: BoxFit.cover,
+                  )
+                : Container(
+                    width: 90,
+                    height: 90,
+                    color: backgroundGrey,
+                    child: const Icon(Icons.image_outlined, color: Colors.grey),
+                  ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -186,17 +246,44 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
-                  child: Text(category, style: TextStyle(color: primaryGreen, fontSize: 10, fontWeight: FontWeight.bold)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    category,
+                    style: TextStyle(
+                      color: primaryGreen,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1A1C1E))),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: Color(0xFF1A1C1E),
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     Icon(Icons.location_on, size: 14, color: primaryGreen),
-                    Text(" $distance km away", style: TextStyle(color: Colors.grey.shade600, fontSize: 13, fontWeight: FontWeight.w500)),
+                    Text(
+                      " $distance km away",
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -214,7 +301,13 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.grey.shade100),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -224,12 +317,29 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
-                  Text("Platform Fee", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1C1E))),
+                  Text(
+                    "Platform Fee",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Color(0xFF1A1C1E),
+                    ),
+                  ),
                   SizedBox(height: 4),
-                  Text("Secure reservation service", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text(
+                    "Secure reservation service",
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
                 ],
               ),
-              Text("₹9", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: primaryGreen)),
+              Text(
+                "₹9",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: primaryGreen,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -243,7 +353,11 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
               const Expanded(
                 child: Text(
                   "This small fee helps us keep the platform running and ensures your item is reserved securely.",
-                  style: TextStyle(color: Colors.blueGrey, fontSize: 12, height: 1.5),
+                  style: TextStyle(
+                    color: Colors.blueGrey,
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
                 ),
               ),
             ],
@@ -259,7 +373,14 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
       children: [
         Icon(Icons.check_circle, color: primaryGreen, size: 16),
         const SizedBox(width: 8),
-        const Text("Encrypted & Secure Payment", style: TextStyle(color: Colors.blueGrey, fontSize: 12, fontWeight: FontWeight.w500)),
+        const Text(
+          "Encrypted & Secure Payment",
+          style: TextStyle(
+            color: Colors.blueGrey,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }
@@ -267,7 +388,10 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
   Widget _buildBottomSection() {
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
-      decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Color(0xFFF1F1F1)))),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFF1F1F1))),
+      ),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -275,8 +399,22 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("Total to pay", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF1A1C1E))),
-                const Text("₹9", style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF1A1C1E))),
+                const Text(
+                  "Total to pay",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF1A1C1E),
+                  ),
+                ),
+                const Text(
+                  "₹9",
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF1A1C1E),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -288,17 +426,32 @@ class _ReserveItemScreenState extends State<ReserveItemScreen> {
                   backgroundColor: primaryGreen,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
                 ),
                 onPressed: _isLoading ? null : _processPayment,
                 child: _isLoading
-                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: const [
                           Icon(Icons.lock, size: 18),
                           SizedBox(width: 10),
-                          Text("Pay & Reserve", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          Text(
+                            "Pay & Reserve",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ],
                       ),
               ),

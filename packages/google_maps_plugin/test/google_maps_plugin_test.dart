@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_maps_plugin/google_maps_plugin.dart';
 
-// Simple implementation for testing
 class TestMarkerItem implements MapMarkerItem {
   @override
   final String id;
@@ -47,14 +47,21 @@ void main() {
     });
 
     test('LocationResult holds data correctly', () {
+      final googleLatLng = const LatLng(17.385, 78.486);
       final result = LocationResult(
-        location: const LatLng(17.385, 78.486),
+        location: googleLatLng,
         address: 'Test Address',
       );
 
       expect(result.location.latitude, 17.385);
       expect(result.location.longitude, 78.486);
       expect(result.address, 'Test Address');
+    });
+
+    test('LatLng from google_maps_flutter is compatible', () {
+      final latLng = const LatLng(17.385044, 78.486671);
+      expect(latLng.latitude, 17.385044);
+      expect(latLng.longitude, 78.486671);
     });
   });
 }

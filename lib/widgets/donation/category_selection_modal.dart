@@ -1,6 +1,6 @@
-// lib/widgets/donation/category_selection_modal.dart
-
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../routes/app_router.dart';
 
 class CategorySelectionModal extends StatelessWidget {
   const CategorySelectionModal({super.key});
@@ -44,9 +44,26 @@ class CategorySelectionModal extends StatelessWidget {
     return InkWell(
       onTap: () {
         Navigator.pop(context); // Close modal
-        // Route to specific forms defined in AGENTS.md (WF-09 to WF-12)
-        String route = '/post-${title.toLowerCase()}';
-        Navigator.pushNamed(context, route);
+        
+        String route;
+        switch (title.toLowerCase()) {
+          case 'food':
+            route = AppRouter.postFood;
+            break;
+          case 'appliances':
+            route = AppRouter.postAppliances;
+            break;
+          case 'blood':
+            route = AppRouter.postBlood;
+            break;
+          case 'stationery':
+            route = AppRouter.postStationery;
+            break;
+          default:
+            route = AppRouter.home;
+        }
+        
+        context.push(route);
       },
       child: Container(
         decoration: BoxDecoration(

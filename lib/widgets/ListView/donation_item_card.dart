@@ -1,6 +1,7 @@
 // lib/widgets/ListView/donation_item_card.dart
 
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class DonationItemCard extends StatelessWidget {
   final String title;
@@ -64,10 +65,18 @@ class DonationItemCard extends StatelessWidget {
                     width: double.infinity,
                     color: Colors.grey.shade100,
                     child: hasRealImage
-                        ? Image.network(
-                            imageUrl,
+                        ? CachedNetworkImage(
+                            imageUrl: imageUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
+                            placeholder: (context, url) => Container(
+                              color: Colors.grey.shade200,
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) =>
                                 _buildErrorPlaceholder(),
                           )
                         : _buildErrorPlaceholder(),

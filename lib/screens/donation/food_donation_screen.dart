@@ -8,22 +8,22 @@ import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/default_location.dart';
 import '../../services/storage_service.dart';
-import '../../services/auth_service.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/donation/location_picker_field.dart';
 import '../../widgets/donation/donation_success_view.dart';
 import '../profile/my_donations_screen.dart';
 
-class FoodDonationScreen extends StatefulWidget {
+class FoodDonationScreen extends ConsumerStatefulWidget {
   const FoodDonationScreen({super.key});
 
   @override
-  State<FoodDonationScreen> createState() => _FoodDonationScreenState();
+  ConsumerState<FoodDonationScreen> createState() => _FoodDonationScreenState();
 }
 
-class _FoodDonationScreenState extends State<FoodDonationScreen> {
+class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
   final _formKey = GlobalKey<FormState>();
   int _currentStep = 1;
   bool _isLoading = false;
@@ -67,7 +67,7 @@ class _FoodDonationScreenState extends State<FoodDonationScreen> {
     
     // Pre-fill location from user profile
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = Provider.of<AuthService>(context, listen: false).userModel;
+      final user = ref.read(userModelProvider).value;
       if (user != null) {
         setState(() {
           if (user.latitude != null && user.longitude != null) {

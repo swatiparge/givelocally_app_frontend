@@ -1,31 +1,38 @@
-// lib/widgets/ListView/home_list_content.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../routes/app_router.dart';
+import '../../providers/auth_provider.dart';
 import 'dart:math';
 import '../../services/api_service.dart';
-import '../../services/auth_service.dart';
 import '../ListView/get_started_cards.dart';
 import '../ListView/donation_item_card.dart';
 import '../ListView/urgent_blood_request_card.dart';
-import '../../screens/home/view_all_donations_screen.dart';
 
-class HomeListContent extends StatefulWidget {
-  const HomeListContent({super.key, required this.lat, required this.lng});
+class HomeListContent extends ConsumerStatefulWidget {
+  const HomeListContent({
+    super.key,
+    required this.lat,
+    required this.lng,
+    this.searchQuery,
+  });
 
   final double lat;
   final double lng;
+  final String? searchQuery;
 
   @override
-  State<HomeListContent> createState() => _HomeListContentState();
+  ConsumerState<HomeListContent> createState() => _HomeListContentState();
 }
 
-class _HomeListContentState extends State<HomeListContent> {
+class _HomeListContentState extends ConsumerState<HomeListContent> {
   final ApiService _apiService = ApiService();
   
   // Cache the futures in state to prevent re-fetching on every rebuild
   late Future<List<dynamic>> _bloodRequestsFuture;
   late Future<List<dynamic>> _foodDonationsFuture;
   late Future<List<dynamic>> _otherItemsFuture;
+  Future<List<dynamic>>? _searchResultsFuture;
 
   @override
   void initState() {
@@ -34,32 +41,50 @@ class _HomeListContentState extends State<HomeListContent> {
   }
 
   void _initFutures() {
-    _bloodRequestsFuture = _apiService.fetchNearbyDonations(
-      lat: widget.lat,
-      lng: widget.lng,
-      category: "blood",
-      radiusKm: 50.0,
-    );
-    
-    _foodDonationsFuture = _apiService.fetchMultipleCategories(
-      lat: widget.lat,
-      lng: widget.lng,
-      categories: ["food"],
-      radiusKm: 50,
-    );
-    
-    _otherItemsFuture = _apiService.fetchMultipleCategories(
-      lat: widget.lat,
-      lng: widget.lng,
-      categories: ["appliances", "stationery"],
-      radiusKm: 50,
-    );
+    if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
+      _searchResultsFuture = _apiService.searchDonations(
+        searchQuery: widget.searchQuery,
+        lat: widget.lat,
+        lng: widget.lng,
+        limit: 20,
+      );
+    } else {
+      _searchResultsFuture = null;
+      _bloodRequestsFuture = _apiService.fetchNearbyDonations(
+        lat: widget.lat,
+        lng: widget.lng,
+        category: "blood",
+        radiusKm: 50.0,
+      );
+      
+      _foodDonationsFuture = _apiService.fetchMultipleCategories(
+        lat: widget.lat,
+        lng: widget.lng,
+        categories: ["food"],
+        radiusKm: 50,
+      );
+      
+      _otherItemsFuture = _apiService.fetchMultipleCategories(
+        lat: widget.lat,
+        lng: widget.lng,
+        categories: ["appliances", "stationery"],
+        radiusKm: 50,
+      );
+    }
   }
 
   @override
   void didUpdateWidget(HomeListContent oldWidget) {
     super.didUpdateWidget(oldWidget);
     
+    // Refresh if search query changed
+    if (oldWidget.searchQuery != widget.searchQuery) {
+      setState(() {
+        _initFutures();
+      });
+      return;
+    }
+
     // Only refresh if location changed significantly (> 500 meters)
     final distance = _calculateDistance(
       oldWidget.lat, oldWidget.lng,
@@ -85,124 +110,225 @@ class _HomeListContentState extends State<HomeListContent> {
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final currentUserId = authService.firebaseUser?.uid;
+    final currentUserId = ref.watch(userIdProvider);
 
     return RefreshIndicator(
       onRefresh: () async {
         setState(() {
           _initFutures();
         });
-        await _bloodRequestsFuture;
-        await _foodDonationsFuture;
-        await _otherItemsFuture;
+        if (_searchResultsFuture != null) {
+          await _searchResultsFuture;
+        } else {
+          await _bloodRequestsFuture;
+          await _foodDonationsFuture;
+          await _otherItemsFuture;
+        }
       },
-      child: ListView(
-        children: [
-          _buildHeader("Get Started", showSeeAll: false),
-          const GetStartedCards(),
+      child: widget.searchQuery != null && widget.searchQuery!.isNotEmpty
+          ? _buildSearchResults()
+          : ListView(
+              children: [
+                _buildHeader("Get Started", showSeeAll: false),
+                const GetStartedCards(),
 
-          _buildHeader(
-            "Urgent Blood Requests",
-            onSeeAll: () => _navigateToViewAll("All Blood Requests", "blood"),
-          ),
-
-          FutureBuilder<List<dynamic>>(
-            future: _bloodRequestsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-              }
-
-              if (snapshot.hasError) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text(
-                    "Failed to load blood requests",
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                );
-              }
-
-              if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                final item = snapshot.data![0];
-                final isPostedByMe = currentUserId != null && 
-                    (item['donorId'] == currentUserId || item['userId'] == currentUserId);
-
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: InkWell(
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      '/donation-detail',
-                      arguments: item,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    child: UrgentBloodRequestCard(
-                      donation: item,
-                      isPostedByMe: isPostedByMe,
-                    ),
-                  ),
-                );
-              }
-
-              return const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Text(
-                  "No urgent requests in your immediate area",
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
-                  textAlign: TextAlign.center,
+                _buildHeader(
+                  "Urgent Blood Requests",
+                  onSeeAll: () => _navigateToViewAll("All Blood Requests", "blood"),
                 ),
-              );
-            },
-          ),
 
-          _buildHeader(
-            "Food Donations",
-            onSeeAll: () => _navigateToViewAll("All Food Donations", "food"),
-          ),
-          _buildCategoryList(_foodDonationsFuture, limit: 5),
+                FutureBuilder<List<dynamic>>(
+                  future: _bloodRequestsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
+                    }
 
-          _buildHeader(
-            "Other Items",
-            onSeeAll: () => _navigateToViewAll(
-              "All Other Items",
-              "",
-              list: ["appliances", "stationery"],
+                    if (snapshot.hasError) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Text(
+                          "Failed to load blood requests",
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    }
+
+                    if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                      final item = snapshot.data![0];
+                      final isPostedByMe = currentUserId != null && 
+                          (item['donorId'] == currentUserId || item['userId'] == currentUserId);
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: InkWell(
+                          onTap: () => context.goToDonationDetail(item),
+                          borderRadius: BorderRadius.circular(16),
+                          child: UrgentBloodRequestCard(
+                            donation: item,
+                            isPostedByMe: isPostedByMe,
+                          ),
+                        ),
+                      );
+                    }
+
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Text(
+                        "No urgent requests in your immediate area",
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                        textAlign: TextAlign.center,
+                      ),
+                    );
+                  },
+                ),
+
+                _buildHeader(
+                  "Food Donations",
+                  onSeeAll: () => _navigateToViewAll("All Food Donations", "food"),
+                ),
+                _buildCategoryList(_foodDonationsFuture, limit: 5),
+
+                _buildHeader(
+                  "Other Items",
+                  onSeeAll: () => _navigateToViewAll(
+                    "All Other Items",
+                    "",
+                    list: ["appliances", "stationery"],
+                  ),
+                ),
+                _buildCategoryList(_otherItemsFuture, limit: 5),
+
+                const SizedBox(height: 100),
+              ],
             ),
-          ),
-          _buildCategoryList(_otherItemsFuture, limit: 5),
-
-          const SizedBox(height: 100),
-        ],
-      ),
     );
   }
 
-  void _navigateToViewAll(String title, String cat, {List<String>? list}) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ViewAllDonationsScreen(
-          title: title,
-          category: cat,
-          categories: list,
-          lat: widget.lat,
-          lng: widget.lng,
+  Widget _buildSearchResults() {
+    final currentUserId = ref.watch(userIdProvider);
+    
+    return FutureBuilder<List<dynamic>>(
+      future: _searchResultsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        if (snapshot.hasError) {
+          return Center(child: Text("Error searching: ${snapshot.error}"));
+        }
+        
+        final items = snapshot.data ?? [];
+        
+        if (items.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32.0),
+              child: Text("No donations found matching your search.", textAlign: TextAlign.center),
+            ),
+          );
+        }
+        
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            final isPostedByMe = currentUserId != null && 
+                (item['donorId'] == currentUserId || item['userId'] == currentUserId);
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: _buildSearchResultItem(item, isPostedByMe),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSearchResultItem(dynamic item, bool isPostedByMe) {
+    final userName = item['userName'] ?? item['username'] ?? item['donorName'] ?? "Donor";
+    
+    return InkWell(
+      onTap: () => context.goToDonationDetail(item),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
+          ],
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                _firstImageUrl(item),
+                width: 80,
+                height: 80,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(color: Colors.grey[200], width: 80, height: 80, child: const Icon(Icons.image_not_supported)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item['title'] ?? "No Title",
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "${item['category'] ?? 'Other'} • $userName",
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  ),
+                  const SizedBox(height: 4),
+                  if (item['distance'] != null)
+                    Text(
+                      _formatDistance(item['distance']),
+                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                ],
+              ),
+            ),
+            if (isPostedByMe)
+              const Chip(
+                label: Text("Mine", style: TextStyle(fontSize: 10, color: Colors.white)),
+                backgroundColor: Colors.blue,
+                padding: EdgeInsets.zero,
+              ),
+          ],
         ),
       ),
     );
   }
 
+  void _navigateToViewAll(String title, String cat, {List<String>? list}) {
+    context.goToViewAll(
+      title: title,
+      category: cat,
+      categories: list,
+      lat: widget.lat,
+      lng: widget.lng,
+    );
+  }
+
   Widget _buildCategoryList(Future<List<dynamic>> future, {int limit = 5}) {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final currentUserId = authService.firebaseUser?.uid;
+    final currentUserId = ref.watch(userIdProvider);
 
     return FutureBuilder<List<dynamic>>(
       future: future,
@@ -243,11 +369,7 @@ class _HomeListContentState extends State<HomeListContent> {
                 donorName: userName,
                 imageUrl: _firstImageUrl(item),
                 isPostedByMe: isPostedByMe,
-                onTap: () => Navigator.pushNamed(
-                  context,
-                  '/donation-detail',
-                  arguments: item,
-                ),
+                onTap: () => context.goToDonationDetail(item),
               );
             },
           ),

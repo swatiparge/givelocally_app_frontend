@@ -1,19 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../services/auth_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/auth_provider.dart';
 import 'package:intl/intl.dart';
 import 'complete_pickup_screen.dart';
 import '../home/donation_detail_screen.dart';
 
-class MyDonationsScreen extends StatefulWidget {
+class MyDonationsScreen extends ConsumerStatefulWidget {
   const MyDonationsScreen({super.key});
 
   @override
-  State<MyDonationsScreen> createState() => _MyDonationsScreenState();
+  ConsumerState<MyDonationsScreen> createState() => _MyDonationsScreenState();
 }
 
-class _MyDonationsScreenState extends State<MyDonationsScreen> with SingleTickerProviderStateMixin {
+class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String _selectedCategory = 'All';
   String _selectedDistance = 'All';
@@ -104,7 +104,7 @@ class _MyDonationsScreenState extends State<MyDonationsScreen> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
-    final uid = Provider.of<AuthService>(context).firebaseUser?.uid;
+    final uid = ref.watch(userIdProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),

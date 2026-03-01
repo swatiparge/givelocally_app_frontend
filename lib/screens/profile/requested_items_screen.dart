@@ -1,14 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../services/auth_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/auth_provider.dart';
 
-class RequestedItemsScreen extends StatelessWidget {
+class RequestedItemsScreen extends ConsumerWidget {
   const RequestedItemsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final uid = Provider.of<AuthService>(context).firebaseUser?.uid;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final uid = ref.watch(userIdProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),

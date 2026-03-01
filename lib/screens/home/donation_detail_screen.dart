@@ -1,9 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../services/auth_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/auth_provider.dart';
+import '../chat/chat_screen.dart';
 
-class DonationDetailScreen extends StatefulWidget {
+class DonationDetailScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> donation;
 
   // If provided (or present as donation['id']), the screen fetches the latest
@@ -17,10 +18,10 @@ class DonationDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<DonationDetailScreen> createState() => _DonationDetailScreenState();
+  ConsumerState<DonationDetailScreen> createState() => _DonationDetailScreenState();
 }
 
-class _DonationDetailScreenState extends State<DonationDetailScreen> {
+class _DonationDetailScreenState extends ConsumerState<DonationDetailScreen> {
   final PageController _pageController = PageController();
   int _activeImageIndex = 0;
   bool _expandedDescription = false;
@@ -812,10 +813,10 @@ class _DonationDetailScreenState extends State<DonationDetailScreen> {
   }
 
   Widget _bottomBar(BuildContext context, Map<String, dynamic> donation) {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final currentUserId = authService.firebaseUser?.uid;
+    final currentUserId = ref.watch(userIdProvider);
     final donorId = donation['donorId'] ?? donation['userId'];
     final isPostedByMe = currentUserId != null && currentUserId == donorId;
+    final images = _imagesFrom(donation);
 
     return SafeArea(
       top: false,
@@ -837,7 +838,21 @@ class _DonationDetailScreenState extends State<DonationDetailScreen> {
               width: 56,
               height: 56,
               child: InkWell(
-                onTap: () {},
+                onTap: () {
+                  final id = _id;
+                  if (id != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatScreen(
+                          donationId: id,
+                          itemName: (donation['title'] ?? 'Item').toString(),
+                          itemImage: images.isNotEmpty ? images.first : null,
+                        ),
+                      ),
+                    );
+                  }
+                },
                 borderRadius: BorderRadius.circular(14),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,

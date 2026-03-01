@@ -4,21 +4,21 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/donation/donation_success_view.dart';
 import '../../config/default_location.dart';
 import '../../services/storage_service.dart';
-import '../../services/auth_service.dart';
-import '../profile/my_donations_screen.dart'; // Added import
+import '../profile/my_donations_screen.dart';
 
-class BloodRequestScreen extends StatefulWidget {
+class BloodRequestScreen extends ConsumerStatefulWidget {
   const BloodRequestScreen({super.key});
 
   @override
-  State<BloodRequestScreen> createState() => _BloodRequestScreenState();
+  ConsumerState<BloodRequestScreen> createState() => _BloodRequestScreenState();
 }
 
-class _BloodRequestScreenState extends State<BloodRequestScreen> {
+class _BloodRequestScreenState extends ConsumerState<BloodRequestScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
@@ -47,7 +47,7 @@ class _BloodRequestScreenState extends State<BloodRequestScreen> {
     super.initState();
     // Pre-fill location from user profile
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = Provider.of<AuthService>(context, listen: false).userModel;
+      final user = ref.read(userModelProvider).value;
       if (user != null) {
         setState(() {
           if (user.latitude != null) _lat = user.latitude!;
