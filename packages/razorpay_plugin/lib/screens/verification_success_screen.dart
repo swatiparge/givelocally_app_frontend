@@ -37,7 +37,7 @@ class VerificationSuccessScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'The ₹50 promise fee has been released back to the receiver.',
+                'The ₹9 reservation fee has been captured. Thank you for completing the pickup!',
                 style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                 textAlign: TextAlign.center,
               ),

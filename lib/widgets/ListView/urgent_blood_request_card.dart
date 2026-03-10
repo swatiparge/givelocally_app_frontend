@@ -1,5 +1,6 @@
 // lib/widgets/ListView/urgent_blood_request_card.dart
 import 'package:flutter/material.dart';
+import '../../routes/app_router.dart';
 
 class UrgentBloodRequestCard extends StatelessWidget {
   final Map<String, dynamic> donation;
@@ -188,11 +189,7 @@ class UrgentBloodRequestCard extends StatelessWidget {
                 ElevatedButton(
                   onPressed: () {
                     // Navigate to WF-16: Donation Detail Screen
-                    Navigator.pushNamed(
-                      context,
-                      '/donation-detail',
-                      arguments: donation,
-                    );
+                    context.goToDonationDetail(donation);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isCritical

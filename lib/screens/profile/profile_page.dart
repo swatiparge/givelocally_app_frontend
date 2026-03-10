@@ -136,13 +136,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Widget _buildStatsGrid(UserModel? user) {
+    final displayKarma = user?.karmaPoints ?? 0;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
           _statCard("⭐ ${user?.averageRating.toStringAsFixed(1) ?? '0.0'}", "RATING"),
           const SizedBox(width: 12),
-          _statCard("🌱 ${user?.karmaPoints ?? 0}", "KARMA", iconColor: const Color(0xFF66BB6A)),
+          _statCard("🌱 $displayKarma", "KARMA", iconColor: const Color(0xFF66BB6A)),
         ],
       ),
     );
@@ -300,7 +302,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ),
           InkWell(
             onTap: () async {
-              await ref.read(authNotifierProvider.notifier).signOut();
+              await ref.read(authServiceProvider).signOut();
             },
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),

@@ -11,7 +11,9 @@ import 'package:geocoding/geocoding.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/default_location.dart';
 import '../../services/storage_service.dart';
+import '../../services/api_service.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/donations_provider.dart';
 import '../../widgets/donation/location_picker_field.dart';
 import '../../widgets/donation/donation_success_view.dart';
 import '../profile/my_donations_screen.dart';
@@ -38,7 +40,10 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
   String _selectedUnit = "Servings";
   final List<String> _unitOptions = ["Servings", "Kgs", "Packets"];
 
-  DateTime _bestBefore = DateTime.now().add(const Duration(hours: 6));
+  DateTime _bestBefore = DateTime.now().add(const Duration(hours: 24));
+  DateTime _pickupStartTime = DateTime.now().add(const Duration(minutes: 30));
+  String? _expiryError;
+
   final List<String> _selectedDietary = [];
   final List<Map<String, dynamic>> _dietaryOptions = [
     {'label': 'Vegetarian', 'icon': Icons.eco},
@@ -64,7 +69,7 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
     super.initState();
     _addressController = TextEditingController(text: _selectedAddress);
     _addressController.addListener(_onAddressTextChanged);
-    
+
     // Pre-fill location from user profile
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final user = ref.read(userModelProvider).value;
@@ -97,6 +102,22 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
     super.dispose();
   }
 
+  void _validateExpiry() {
+    final now = DateTime.now();
+    // Food must be valid for at least 12 hours from now
+    final minimumExpiry = now.add(const Duration(hours: 12));
+
+    if (_bestBefore.isBefore(minimumExpiry)) {
+      setState(() {
+        _expiryError = "Food must be valid for at least 12 hours from now.";
+      });
+    } else {
+      setState(() {
+        _expiryError = null;
+      });
+    }
+  }
+
   void _onAddressTextChanged() {
     if (_suppressAddressSync) return;
     final text = _addressController.text.trim();
@@ -122,9 +143,9 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
 
   Future<void> _takePhoto() async {
     if (_images.length >= 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Max 5 photos allowed")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Max 5 photos allowed")));
       return;
     }
     final ImagePicker picker = ImagePicker();
@@ -137,11 +158,22 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
   }
 
   void _handleContinue() {
+    _validateExpiry();
     if (_formKey.currentState!.validate()) {
       if (_images.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please take at least one photo for safety verification")),
+          const SnackBar(
+            content: Text(
+              "Please take at least one photo for safety verification",
+            ),
+          ),
         );
+        return;
+      }
+      if (_expiryError != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_expiryError!)));
         return;
       }
       setState(() => _currentStep = 2);
@@ -150,6 +182,13 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
 
   Future<void> _submitDonation() async {
     if (!_formKey.currentState!.validate()) return;
+    _validateExpiry();
+    if (_expiryError != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_expiryError!)));
+      return;
+    }
 
     setState(() => _isLoading = true);
     try {
@@ -157,22 +196,35 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
       final idToken = await user?.getIdToken();
 
       final List<String> imageUrls = [];
-      final String tempDonationId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+      final String tempDonationId =
+          'temp_${DateTime.now().millisecondsSinceEpoch}';
 
       for (final imageFile in _images.take(3)) {
-        final url = await _storageService.uploadImage(imageFile, tempDonationId);
+        final url = await _storageService.uploadImage(
+          imageFile,
+          tempDonationId,
+        );
         if (url.isNotEmpty) imageUrls.add(url);
       }
 
-      if (imageUrls.isEmpty) throw Exception("Image upload failed. Please try again.");
+      if (imageUrls.isEmpty)
+        throw Exception("Image upload failed. Please try again.");
 
       String unitSlug = _selectedUnit.toLowerCase();
       if (_selectedUnit == "Kgs") unitSlug = "kg";
 
+      // Ensure title is at least 10 characters long to avoid backend validation issues
+      String title = _titleController.text.trim();
+      if (title.length < 10) {
+        title = "$title - Food Donation";
+      }
+
+      // Fix: Separate expiry_date and pickup_window as 2 different fields.
+      // pickup_window is a 2-hour window starting from _pickupStartTime.
       final payload = {
         "data": {
           "category": "food",
-          "title": _titleController.text,
+          "title": title,
           "description": _descController.text,
           "images": imageUrls,
           "condition": "new",
@@ -184,17 +236,17 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
             "_seconds": _bestBefore.millisecondsSinceEpoch ~/ 1000,
             "_nanoseconds": 0,
           },
-          "dietary_tags": _selectedDietary.map((e) => e.toLowerCase()).toList(),
           "pickup_window": {
             "start_date": {
-              "_seconds": DateTime.now().millisecondsSinceEpoch ~/ 1000,
+              "_seconds": _pickupStartTime.millisecondsSinceEpoch ~/ 1000,
               "_nanoseconds": 0,
             },
             "end_date": {
-              "_seconds": _bestBefore.millisecondsSinceEpoch ~/ 1000,
+              "_seconds": _pickupStartTime.add(const Duration(hours: 2)).millisecondsSinceEpoch ~/ 1000,
               "_nanoseconds": 0,
             },
           },
+          "dietary_tags": _selectedDietary.map((e) => e.toLowerCase()).toList(),
         },
       };
 
@@ -210,11 +262,21 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
       if (response.statusCode == 200) {
         if (mounted) _showSuccessDialog();
       } else {
-        throw Exception(response.body);
+        // Log error body for debugging
+        debugPrint("SUBMIT_ERROR: ${response.body}");
+        final Map<String, dynamic> errorData = jsonDecode(response.body);
+        final String errorMessage =
+            errorData['error']?['message'] ??
+            errorData['message'] ??
+            "Failed to post donation";
+        throw Exception(errorMessage);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+        String msg = e.toString().replaceFirst("Exception: ", "");
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error: $msg")));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -222,17 +284,32 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
   }
 
   void _showSuccessDialog() {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => DonationSuccessView(
-      onPostAnother: () {
-        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
-      },
-      onViewDonation: () {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const MyDonationsScreen()),
-          (route) => route.isFirst,
-        );
-      },
-    )));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DonationSuccessView(
+          onPostAnother: () {
+            // Clear cache and trigger refresh before navigating
+            ApiService().clearCache();
+            ref.read(donationRefreshProvider.notifier).refresh();
+            Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/home', (route) => false);
+          },
+          onViewDonation: () {
+            // Clear cache and trigger refresh before navigating
+            ApiService().clearCache();
+            ref.read(donationRefreshProvider.notifier).refresh();
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (context) => const MyDonationsScreen(),
+              ),
+              (route) => route.isFirst,
+            );
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -252,7 +329,10 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
             }
           },
         ),
-        title: const Text("Donate Food", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: const Text(
+          "Donate Food",
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
       ),
       body: SingleChildScrollView(
         child: Form(
@@ -260,14 +340,30 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
                 child: Column(
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text("STEP $_currentStep OF 2", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
-                        Text(_currentStep == 1 ? "Details" : "Location", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        Text(
+                          "STEP $_currentStep OF 2",
+                          style: const TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          _currentStep == 1 ? "Details" : "Location",
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -277,7 +373,9 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
                         value: _currentStep / 2,
                         minHeight: 6,
                         backgroundColor: const Color(0xFFE0E0E0),
-                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Colors.green,
+                        ),
                       ),
                     ),
                   ],
@@ -297,15 +395,23 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("What are you sharing?", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          const Text("Be descriptive so receivers know what to expect.", style: TextStyle(color: Colors.grey)),
+          const Text(
+            "What are you sharing?",
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const Text(
+            "Be descriptive so receivers know what to expect.",
+            style: TextStyle(color: Colors.grey),
+          ),
           const SizedBox(height: 24),
 
           _buildLabel("Item Title"),
           TextFormField(
             controller: _titleController,
             decoration: _inputDeco("e.g., Home-cooked Dal & Rice"),
-            validator: (v) => (v == null || v.isEmpty) ? "Required" : (v.length < 6 ? "Too short" : null),
+            validator: (v) => (v == null || v.isEmpty)
+                ? "Required"
+                : (v.length < 6 ? "Too short" : null),
           ),
           const SizedBox(height: 20),
 
@@ -313,8 +419,12 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
           TextFormField(
             controller: _descController,
             maxLines: 3,
-            decoration: _inputDeco("Describe taste, ingredients, or special notes..."),
-            validator: (v) => (v == null || v.isEmpty) ? "Required" : (v.length < 20 ? "More detail needed" : null),
+            decoration: _inputDeco(
+              "Describe taste, ingredients, or special notes...",
+            ),
+            validator: (v) => (v == null || v.isEmpty)
+                ? "Required"
+                : (v.length < 20 ? "More detail needed" : null),
           ),
           const SizedBox(height: 20),
 
@@ -329,7 +439,8 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
                       controller: _qtyController,
                       keyboardType: TextInputType.number,
                       decoration: _inputDeco("1"),
-                      validator: (v) => v == null || v.isEmpty ? "Required" : null,
+                      validator: (v) =>
+                          v == null || v.isEmpty ? "Required" : null,
                     ),
                   ],
                 ),
@@ -343,7 +454,11 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
                     DropdownButtonFormField<String>(
                       value: _selectedUnit,
                       decoration: _inputDeco(""),
-                      items: _unitOptions.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                      items: _unitOptions
+                          .map(
+                            (u) => DropdownMenuItem(value: u, child: Text(u)),
+                          )
+                          .toList(),
                       onChanged: (val) => setState(() => _selectedUnit = val!),
                     ),
                   ],
@@ -354,18 +469,41 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
 
           const SizedBox(height: 32),
           const Divider(),
-          const Text("Safety & Freshness", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const Text(
+            "Safety & Freshness",
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 20),
 
-          _buildLabel("Best Before"),
-          _buildDatePicker(),
+          _buildLabel("Best Before (Expiry)"),
+          _buildDatePicker(
+            currentValue: _bestBefore,
+            onChanged: (dt) => setState(() => _bestBefore = dt),
+            isExpiry: true,
+          ),
+          if (_expiryError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0, left: 4.0),
+              child: Text(
+                _expiryError!,
+                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+              ),
+            ),
+
+          const SizedBox(height: 24),
+          _buildLabel("Available for Pickup (2hr Window)"),
+          _buildDatePicker(
+            currentValue: _pickupStartTime,
+            onChanged: (dt) => setState(() => _pickupStartTime = dt),
+            isExpiry: false,
+          ),
 
           const SizedBox(height: 24),
           _buildLabel("Dietary Info"),
           _buildDietaryChips(),
 
           const SizedBox(height: 32),
-          _buildPickupRules(),
+          _buildSafetyRules(),
 
           const SizedBox(height: 32),
           _buildCameraNotice(),
@@ -379,11 +517,14 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
     );
   }
 
-  Widget _buildPickupRules() {
+  Widget _buildSafetyRules() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Dynamic Pickup Rules", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const Text(
+          "Food Safety Rules",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(16),
@@ -396,8 +537,15 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                child: const Icon(Icons.access_time_filled, color: Colors.blueAccent, size: 20),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.access_time_filled,
+                  color: Colors.blueAccent,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               const Expanded(
@@ -405,15 +553,24 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Dynamic Pickup & Expiry: To ensure food safety, donations have strict time limits.",
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1A1C1E)),
+                      "Safety Requirements",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Color(0xFF1A1C1E),
+                      ),
                     ),
                     SizedBox(height: 6),
                     Text(
-                      "- Donation expires in 2 hours if not claimed.\n"
-                      "- Once claimed, the receiver has a strict 2-hour window to complete the pickup.\n"
-                      "- Failure to pick up on time results in the item being automatically relisted and the loss of the promise fee.",
-                      style: TextStyle(fontSize: 12, color: Color(0xFF4A4C4E), height: 1.4),
+                      "- Expiry: Food must be valid for at least 12 hours.\n"
+                      "- Pickup: Your available time to hand over the food.\n"
+                      "- The app sets a 2-hour pickup window from your start time.\n"
+                      "- Please ensure you are available during the pickup window.",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF4A4C4E),
+                        height: 1.4,
+                      ),
                     ),
                   ],
                 ),
@@ -431,8 +588,14 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Where is the pickup?", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          const Text("Set your location so nearby receivers can find you.", style: TextStyle(color: Colors.grey)),
+          const Text(
+            "Where is the pickup?",
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const Text(
+            "Set your location so nearby receivers can find you.",
+            style: TextStyle(color: Colors.grey),
+          ),
           const SizedBox(height: 30),
 
           LocationPickerField(
@@ -446,7 +609,9 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
                 _selectedAddress = addr;
                 _addressController.text = addr;
               });
-              WidgetsBinding.instance.addPostFrameCallback((_) => _suppressAddressSync = false);
+              WidgetsBinding.instance.addPostFrameCallback(
+                (_) => _suppressAddressSync = false,
+              );
             },
           ),
           const SizedBox(height: 20),
@@ -458,7 +623,10 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
             validator: (v) => v == null || v.isEmpty ? "Required" : null,
           ),
           const SizedBox(height: 100),
-          _buildButton(_isLoading ? "Posting..." : "Post Donation", _isLoading ? null : _submitDonation),
+          _buildButton(
+            _isLoading ? "Posting..." : "Post Donation",
+            _isLoading ? null : _submitDonation,
+          ),
         ],
       ),
     );
@@ -468,11 +636,20 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
     hintText: hint,
     filled: true,
     fillColor: const Color(0xFFF8F9FA),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
     errorStyle: const TextStyle(color: Colors.redAccent, fontSize: 12),
   );
 
-  Widget _buildLabel(String text) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)));
+  Widget _buildLabel(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      text,
+      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+    ),
+  );
 
   Widget _buildButton(String text, VoidCallback? action) => SizedBox(
     width: double.infinity,
@@ -484,22 +661,70 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
         elevation: 0,
       ),
       onPressed: action,
-      child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+      child: _isLoading
+          ? const CircularProgressIndicator(color: Colors.white)
+          : Text(
+              text,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
     ),
   );
 
-  Widget _buildDatePicker() => InkWell(
+  Widget _buildDatePicker({
+    required DateTime currentValue,
+    required Function(DateTime) onChanged,
+    required bool isExpiry,
+  }) => InkWell(
     onTap: () async {
-      final d = await showDatePicker(context: context, initialDate: _bestBefore, firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 7)));
+      final now = DateTime.now();
+      final firstDate = isExpiry ? now : now.subtract(const Duration(minutes: 5));
+      
+      final d = await showDatePicker(
+        context: context,
+        initialDate: currentValue.isBefore(firstDate) ? now : currentValue,
+        firstDate: firstDate,
+        lastDate: now.add(const Duration(days: 365)),
+      );
       if (d != null) {
-        final t = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(_bestBefore));
-        if (t != null) setState(() => _bestBefore = DateTime(d.year, d.month, d.day, t.hour, t.minute));
+        final t = await showTimePicker(
+          context: context,
+          initialTime: TimeOfDay.fromDateTime(currentValue),
+        );
+        if (t != null) {
+          final selectedDateTime = DateTime(
+            d.year,
+            d.month,
+            d.day,
+            t.hour,
+            t.minute,
+          );
+          onChanged(selectedDateTime);
+          if (isExpiry) _validateExpiry();
+        }
       }
     },
     child: Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFFF8F9FA), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
-      child: Row(children: [const Icon(Icons.calendar_today_outlined, size: 20), const SizedBox(width: 12), Text(DateFormat('MM/dd/yyyy, hh:mm a').format(_bestBefore)), const Spacer(), const Icon(Icons.calendar_month, size: 20)]),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: (isExpiry && _expiryError != null) ? Colors.redAccent : Colors.grey.shade300,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(isExpiry ? Icons.event_available : Icons.access_time, size: 20),
+          const SizedBox(width: 12),
+          Text(DateFormat('MM/dd/yyyy, hh:mm a').format(currentValue)),
+          const Spacer(),
+          const Icon(Icons.calendar_month, size: 20),
+        ],
+      ),
     ),
   );
 
@@ -509,13 +734,23 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
     children: _dietaryOptions.map((opt) {
       final isSelected = _selectedDietary.contains(opt['label']);
       return FilterChip(
-        avatar: Icon(opt['icon'], size: 16, color: isSelected ? Colors.white : Colors.green),
+        avatar: Icon(
+          opt['icon'],
+          size: 16,
+          color: isSelected ? Colors.white : Colors.green,
+        ),
         label: Text(opt['label']),
         selected: isSelected,
         selectedColor: Colors.green,
         checkmarkColor: Colors.white,
-        labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black87),
-        onSelected: (val) => setState(() => val ? _selectedDietary.add(opt['label']) : _selectedDietary.remove(opt['label'])),
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : Colors.black87,
+        ),
+        onSelected: (val) => setState(
+          () => val
+              ? _selectedDietary.add(opt['label'])
+              : _selectedDietary.remove(opt['label']),
+        ),
         backgroundColor: Colors.white,
         shape: const StadiumBorder(side: BorderSide(color: Colors.grey)),
       );
@@ -524,39 +759,92 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
 
   Widget _buildCameraNotice() => Container(
     padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(color: const Color(0xFFF0F7FF), borderRadius: BorderRadius.circular(16)),
-    child: Row(children: [
-      Container(
-        padding: const EdgeInsets.all(8),
-        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-        child: IconButton(icon: Icon(_images.length < 5 ? Icons.camera_alt : Icons.check_circle, color: Colors.blue), onPressed: _takePhoto),
-      ),
-      const SizedBox(width: 16),
-      const Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Live photos required", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-            Text("Gallery uploads are disabled. Max 5 photos.", style: TextStyle(fontSize: 12, color: Colors.blueGrey)),
-          ],
+    decoration: BoxDecoration(
+      color: const Color(0xFFF0F7FF),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
+          child: IconButton(
+            icon: Icon(
+              _images.length < 5 ? Icons.camera_alt : Icons.check_circle,
+              color: Colors.blue,
+            ),
+            onPressed: _takePhoto,
+          ),
         ),
-      ),
-    ]),
-  );
-
-  Widget _buildImagePreview() => _images.isEmpty ? const SizedBox() : Padding(
-    padding: const EdgeInsets.only(top: 12),
-    child: SizedBox(
-      height: 80,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _images.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) => Stack(children: [
-          ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(_images[index], height: 80, width: 80, fit: BoxFit.cover)),
-          Positioned(right: 0, top: 0, child: InkWell(onTap: () => setState(() => _images.removeAt(index)), child: Container(padding: const EdgeInsets.all(2), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.close, color: Colors.white, size: 14)))),
-        ]),
-      ),
+        const SizedBox(width: 16),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Live photos required",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blueAccent,
+                ),
+              ),
+              Text(
+                "Gallery uploads are disabled. Max 5 photos.",
+                style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+              ),
+            ],
+          ),
+        ),
+      ],
     ),
   );
+
+  Widget _buildImagePreview() => _images.isEmpty
+      ? const SizedBox()
+      : Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: SizedBox(
+            height: 80,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _images.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) => Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      _images[index],
+                      height: 80,
+                      width: 80,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: InkWell(
+                      onTap: () => setState(() => _images.removeAt(index)),
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
 }

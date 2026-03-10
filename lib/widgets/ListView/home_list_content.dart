@@ -3,13 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../routes/app_router.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/donations_provider.dart';
+import '../../providers/preferences_provider.dart';
 import 'dart:math';
 import '../../services/api_service.dart';
 import '../ListView/get_started_cards.dart';
 import '../ListView/donation_item_card.dart';
 import '../ListView/urgent_blood_request_card.dart';
 
-class HomeListContent extends ConsumerStatefulWidget {
+/// Home screen list content with real-time Firestore streams
+///
+/// Uses StreamBuilder with Riverpod providers for real-time updates
+/// instead of cached Future-based API calls
+class HomeListContent extends ConsumerWidget {
   const HomeListContent({
     super.key,
     required this.lat,
@@ -22,231 +28,260 @@ class HomeListContent extends ConsumerStatefulWidget {
   final String? searchQuery;
 
   @override
-  ConsumerState<HomeListContent> createState() => _HomeListContentState();
-}
-
-class _HomeListContentState extends ConsumerState<HomeListContent> {
-  final ApiService _apiService = ApiService();
-  
-  // Cache the futures in state to prevent re-fetching on every rebuild
-  late Future<List<dynamic>> _bloodRequestsFuture;
-  late Future<List<dynamic>> _foodDonationsFuture;
-  late Future<List<dynamic>> _otherItemsFuture;
-  Future<List<dynamic>>? _searchResultsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _initFutures();
-  }
-
-  void _initFutures() {
-    if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
-      _searchResultsFuture = _apiService.searchDonations(
-        searchQuery: widget.searchQuery,
-        lat: widget.lat,
-        lng: widget.lng,
-        limit: 20,
-      );
-    } else {
-      _searchResultsFuture = null;
-      _bloodRequestsFuture = _apiService.fetchNearbyDonations(
-        lat: widget.lat,
-        lng: widget.lng,
-        category: "blood",
-        radiusKm: 50.0,
-      );
-      
-      _foodDonationsFuture = _apiService.fetchMultipleCategories(
-        lat: widget.lat,
-        lng: widget.lng,
-        categories: ["food"],
-        radiusKm: 50,
-      );
-      
-      _otherItemsFuture = _apiService.fetchMultipleCategories(
-        lat: widget.lat,
-        lng: widget.lng,
-        categories: ["appliances", "stationery"],
-        radiusKm: 50,
-      );
-    }
-  }
-
-  @override
-  void didUpdateWidget(HomeListContent oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    
-    // Refresh if search query changed
-    if (oldWidget.searchQuery != widget.searchQuery) {
-      setState(() {
-        _initFutures();
-      });
-      return;
-    }
-
-    // Only refresh if location changed significantly (> 500 meters)
-    final distance = _calculateDistance(
-      oldWidget.lat, oldWidget.lng,
-      widget.lat, widget.lng,
-    );
-    
-    if (distance > 0.5) {
-      debugPrint("HOME_LIST_CONTENT: Significant movement detected ($distance km). Refreshing futures.");
-      setState(() {
-        _initFutures();
-      });
-    }
-  }
-
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    var p = 0.017453292519943295;
-    var c = cos;
-    var a = 0.5 - c((lat2 - lat1) * p)/2 + 
-          c(lat1 * p) * c(lat2 * p) * 
-          (1 - c((lon2 - lon1) * p))/2;
-    return 12742 * asin(sqrt(a));
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final currentUserId = ref.watch(userIdProvider);
 
     return RefreshIndicator(
       onRefresh: () async {
-        setState(() {
-          _initFutures();
-        });
-        if (_searchResultsFuture != null) {
-          await _searchResultsFuture;
-        } else {
-          await _bloodRequestsFuture;
-          await _foodDonationsFuture;
-          await _otherItemsFuture;
-        }
+        // Trigger refresh via Riverpod provider
+        ref.read(donationRefreshProvider.notifier).refresh();
       },
-      child: widget.searchQuery != null && widget.searchQuery!.isNotEmpty
-          ? _buildSearchResults()
-          : ListView(
-              children: [
-                _buildHeader("Get Started", showSeeAll: false),
-                const GetStartedCards(),
-
-                _buildHeader(
-                  "Urgent Blood Requests",
-                  onSeeAll: () => _navigateToViewAll("All Blood Requests", "blood"),
-                ),
-
-                FutureBuilder<List<dynamic>>(
-                  future: _bloodRequestsFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(20),
-                          child: CircularProgressIndicator(),
-                        ),
-                      );
-                    }
-
-                    if (snapshot.hasError) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: Text(
-                          "Failed to load blood requests",
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
-                          textAlign: TextAlign.center,
-                        ),
-                      );
-                    }
-
-                    if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                      final item = snapshot.data![0];
-                      final isPostedByMe = currentUserId != null && 
-                          (item['donorId'] == currentUserId || item['userId'] == currentUserId);
-
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: InkWell(
-                          onTap: () => context.goToDonationDetail(item),
-                          borderRadius: BorderRadius.circular(16),
-                          child: UrgentBloodRequestCard(
-                            donation: item,
-                            isPostedByMe: isPostedByMe,
-                          ),
-                        ),
-                      );
-                    }
-
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: Text(
-                        "No urgent requests in your immediate area",
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                        textAlign: TextAlign.center,
-                      ),
-                    );
-                  },
-                ),
-
-                _buildHeader(
-                  "Food Donations",
-                  onSeeAll: () => _navigateToViewAll("All Food Donations", "food"),
-                ),
-                _buildCategoryList(_foodDonationsFuture, limit: 5),
-
-                _buildHeader(
-                  "Other Items",
-                  onSeeAll: () => _navigateToViewAll(
-                    "All Other Items",
-                    "",
-                    list: ["appliances", "stationery"],
-                  ),
-                ),
-                _buildCategoryList(_otherItemsFuture, limit: 5),
-
-                const SizedBox(height: 100),
-              ],
-            ),
+      child: searchQuery != null && searchQuery!.isNotEmpty
+          ? _buildSearchResults(context, ref, currentUserId)
+          : _buildCategoryLists(context, ref, currentUserId),
     );
   }
 
-  Widget _buildSearchResults() {
-    final currentUserId = ref.watch(userIdProvider);
-    
+  Widget _buildCategoryLists(
+    BuildContext context,
+    WidgetRef ref,
+    String? currentUserId,
+  ) {
+    final coords = (lat: lat, lng: lng);
+    final getStartedAsync = ref.watch(getStartedNotifierProvider);
+
+    return ListView(
+      children: [
+        // Get Started section - only show for first-time users
+        getStartedAsync.when(
+          data: (hasSeen) {
+            if (hasSeen) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader("Get Started", showSeeAll: false),
+                const GetStartedCards(),
+                const SizedBox(height: 8),
+                // Dismiss button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextButton.icon(
+                    onPressed: () {
+                      ref
+                          .read(getStartedNotifierProvider.notifier)
+                          .markAsSeen();
+                    },
+                    icon: const Icon(Icons.close, size: 16),
+                    label: const Text("Dismiss"),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.grey[600],
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, __) => const SizedBox.shrink(),
+        ),
+
+        _buildHeader(
+          "Urgent Blood Requests",
+          onSeeAll: () =>
+              _navigateToViewAll(context, "All Blood Requests", "blood"),
+        ),
+        _buildBloodRequestsSection(context, ref, coords, currentUserId),
+
+        _buildHeader(
+          "Food Donations",
+          onSeeAll: () =>
+              _navigateToViewAll(context, "All Food Donations", "food"),
+        ),
+        _buildFoodDonationsSection(ref, coords, currentUserId),
+
+        _buildHeader(
+          "Other Items",
+          onSeeAll: () => _navigateToViewAll(
+            context,
+            "All Other Items",
+            "",
+            list: ["appliances", "stationery"],
+          ),
+        ),
+        _buildOtherItemsSection(ref, coords, currentUserId),
+
+        const SizedBox(height: 100),
+      ],
+    );
+  }
+
+  /// Build blood requests section with real-time stream
+  Widget _buildBloodRequestsSection(
+    BuildContext context,
+    WidgetRef ref,
+    ({double lat, double lng}) coords,
+    String? currentUserId,
+  ) {
+    final bloodStream = ref.watch(refreshableBloodRequestsProvider(coords));
+
+    return bloodStream.when(
+      data: (snapshot) {
+        final items = _applySorting(snapshot.toDonationList());
+
+        if (items.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              "No urgent requests in your immediate area",
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
+          );
+        }
+
+        final item = items[0];
+        final isPostedByMe =
+            currentUserId != null &&
+            (item['donorId'] == currentUserId ||
+                item['userId'] == currentUserId);
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: InkWell(
+            onTap: () => context.goToDonationDetail(item),
+            borderRadius: BorderRadius.circular(16),
+            child: UrgentBloodRequestCard(
+              donation: item,
+              isPostedByMe: isPostedByMe,
+            ),
+          ),
+        );
+      },
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (error, stack) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Text(
+          "Failed to load blood requests: $error",
+          style: const TextStyle(color: Colors.grey, fontSize: 12),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+
+  /// Build food donations section with real-time stream
+  Widget _buildFoodDonationsSection(
+    WidgetRef ref,
+    ({double lat, double lng}) coords,
+    String? currentUserId,
+  ) {
+    final foodStream = ref.watch(refreshableFoodDonationsProvider(coords));
+
+    return foodStream.when(
+      data: (snapshot) => _buildCategoryList(
+        snapshot.toDonationList(),
+        limit: 5,
+        currentUserId: currentUserId,
+      ),
+      loading: () => const SizedBox(
+        height: 100,
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, stack) => const SizedBox(
+        height: 100,
+        child: Center(child: Text("No food donations nearby")),
+      ),
+    );
+  }
+
+  /// Build other items section with real-time stream
+  Widget _buildOtherItemsSection(
+    WidgetRef ref,
+    ({double lat, double lng}) coords,
+    String? currentUserId,
+  ) {
+    final otherStream = ref.watch(refreshableOtherItemsProvider(coords));
+
+    return otherStream.when(
+      data: (snapshot) => _buildCategoryList(
+        snapshot.toDonationList(),
+        limit: 5,
+        currentUserId: currentUserId,
+      ),
+      loading: () => const SizedBox(
+        height: 100,
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, stack) => const SizedBox(
+        height: 100,
+        child: Center(child: Text("No items nearby")),
+      ),
+    );
+  }
+
+  /// Build search results (uses API for fuzzy search)
+  Widget _buildSearchResults(
+    BuildContext context,
+    WidgetRef ref,
+    String? currentUserId,
+  ) {
+    // Search still uses API for fuzzy matching
+    final searchFuture = ref
+        .read(apiServiceProvider)
+        .searchDonations(
+          searchQuery: searchQuery,
+          lat: lat,
+          lng: lng,
+          limit: 20,
+        );
+
     return FutureBuilder<List<dynamic>>(
-      future: _searchResultsFuture,
+      future: searchFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        
         if (snapshot.hasError) {
           return Center(child: Text("Error searching: ${snapshot.error}"));
         }
-        
-        final items = snapshot.data ?? [];
-        
+
+        final rawItems = snapshot.data ?? [];
+        final items = _applySorting(rawItems.cast<Map<String, dynamic>>());
+
         if (items.isEmpty) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(32.0),
-              child: Text("No donations found matching your search.", textAlign: TextAlign.center),
+              child: Text(
+                "No donations found matching your search.",
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }
-        
+
         return ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: items.length,
           itemBuilder: (context, index) {
             final item = items[index];
-            final isPostedByMe = currentUserId != null && 
-                (item['donorId'] == currentUserId || item['userId'] == currentUserId);
+            final isPostedByMe =
+                currentUserId != null &&
+                (item['donorId'] == currentUserId ||
+                    item['userId'] == currentUserId);
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12.0),
-              child: _buildSearchResultItem(item, isPostedByMe),
+              child: _buildSearchResultItem(context, item, isPostedByMe),
             );
           },
         );
@@ -254,9 +289,18 @@ class _HomeListContentState extends ConsumerState<HomeListContent> {
     );
   }
 
-  Widget _buildSearchResultItem(dynamic item, bool isPostedByMe) {
-    final userName = item['userName'] ?? item['username'] ?? item['donorName'] ?? "Donor";
-    
+  Widget _buildSearchResultItem(
+    BuildContext context,
+    dynamic item,
+    bool isPostedByMe,
+  ) {
+    final donorName =
+        item['donor_name'] ??
+        item['donorName'] ??
+        item['userName'] ??
+        item['username'] ??
+        "Donor";
+
     return InkWell(
       onTap: () => context.goToDonationDetail(item),
       child: Container(
@@ -265,7 +309,11 @@ class _HomeListContentState extends ConsumerState<HomeListContent> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
         child: Row(
@@ -277,7 +325,12 @@ class _HomeListContentState extends ConsumerState<HomeListContent> {
                 width: 80,
                 height: 80,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(color: Colors.grey[200], width: 80, height: 80, child: const Icon(Icons.image_not_supported)),
+                errorBuilder: (_, __, ___) => Container(
+                  color: Colors.grey[200],
+                  width: 80,
+                  height: 80,
+                  child: const Icon(Icons.image_not_supported),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -287,27 +340,37 @@ class _HomeListContentState extends ConsumerState<HomeListContent> {
                 children: [
                   Text(
                     item['title'] ?? "No Title",
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "${item['category'] ?? 'Other'} • $userName",
+                    "${item['category'] ?? 'Other'} • $donorName",
                     style: TextStyle(color: Colors.grey[600], fontSize: 13),
                   ),
                   const SizedBox(height: 4),
                   if (item['distance'] != null)
                     Text(
                       _formatDistance(item['distance']),
-                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
                 ],
               ),
             ),
             if (isPostedByMe)
               const Chip(
-                label: Text("Mine", style: TextStyle(fontSize: 10, color: Colors.white)),
+                label: Text(
+                  "Mine",
+                  style: TextStyle(fontSize: 10, color: Colors.white),
+                ),
                 backgroundColor: Colors.blue,
                 padding: EdgeInsets.zero,
               ),
@@ -317,65 +380,95 @@ class _HomeListContentState extends ConsumerState<HomeListContent> {
     );
   }
 
-  void _navigateToViewAll(String title, String cat, {List<String>? list}) {
-    context.goToViewAll(
-      title: title,
-      category: cat,
-      categories: list,
-      lat: widget.lat,
-      lng: widget.lng,
+  /// Build horizontal category list with donation cards
+  Widget _buildCategoryList(
+    List<Map<String, dynamic>> items, {
+    required int limit,
+    required String? currentUserId,
+  }) {
+    if (items.isEmpty) {
+      return const SizedBox(
+        height: 100,
+        child: Center(child: Text("No items nearby")),
+      );
+    }
+
+    final sortedItems = _applySorting(items);
+    final displayItems = sortedItems.take(limit).toList();
+
+    return SizedBox(
+      height: 230,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(left: 16),
+        itemCount: displayItems.length,
+        itemBuilder: (context, index) {
+          final item = displayItems[index];
+          final isPostedByMe =
+              currentUserId != null &&
+              (item['donorId'] == currentUserId ||
+                  item['userId'] == currentUserId);
+          final donorName =
+              item['donor_name'] ??
+              item['donorName'] ??
+              item['userName'] ??
+              item['username'] ??
+              "Donor";
+
+          return DonationItemCard(
+            key: ValueKey(item['id']), // Important for list optimization
+            title: item['title'] ?? "Item",
+            category: item['category'] ?? "Other",
+            distance: _formatDistance(item['distance']),
+            donorName: donorName,
+            imageUrl: _firstImageUrl(item),
+            isPostedByMe: isPostedByMe,
+            onTap: () => context.goToDonationDetail(item),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildCategoryList(Future<List<dynamic>> future, {int limit = 5}) {
-    final currentUserId = ref.watch(userIdProvider);
+  /// Sort items by creation date (newest first)
+  List<Map<String, dynamic>> _applySorting(List<Map<String, dynamic>> items) {
+    final sortedItems = List<Map<String, dynamic>>.from(items);
+    sortedItems.sort((a, b) {
+      final dateA = _extractDateTime(a);
+      final dateB = _extractDateTime(b);
+      return dateB.compareTo(dateA);
+    });
+    return sortedItems;
+  }
 
-    return FutureBuilder<List<dynamic>>(
-      future: future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-            height: 100,
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
+  DateTime _extractDateTime(Map<String, dynamic> item) {
+    final dateData =
+        item['createdAt'] ??
+        item['created_at'] ??
+        item['timestamp'] ??
+        (item['pickup_window'] != null
+            ? item['pickup_window']['start_date']
+            : null);
 
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const SizedBox(
-            height: 100,
-            child: Center(child: Text("No items nearby")),
-          );
-        }
+    if (dateData == null) return DateTime(2000);
 
-        final items = snapshot.data!.take(limit).toList();
+    if (dateData is Map) {
+      final seconds = dateData['_seconds'] ?? dateData['seconds'] ?? 0;
+      return DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+    }
 
-        return SizedBox(
-          height: 230,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.only(left: 16),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final item = items[index];
-              final isPostedByMe = currentUserId != null && 
-                  (item['donorId'] == currentUserId || item['userId'] == currentUserId);
+    if (dateData is int) {
+      if (dateData < 10000000000) {
+        return DateTime.fromMillisecondsSinceEpoch(dateData * 1000);
+      }
+      return DateTime.fromMillisecondsSinceEpoch(dateData);
+    }
 
-              final userName = item['userName'] ?? item['username'] ?? item['donorName'] ?? "Donor";
+    if (dateData is String) {
+      return DateTime.tryParse(dateData) ?? DateTime(2000);
+    }
 
-              return DonationItemCard(
-                title: item['title'] ?? "Item",
-                category: item['category'] ?? "Other",
-                distance: _formatDistance(item['distance']),
-                donorName: userName,
-                imageUrl: _firstImageUrl(item),
-                isPostedByMe: isPostedByMe,
-                onTap: () => context.goToDonationDetail(item),
-              );
-            },
-          ),
-        );
-      },
-    );
+    return DateTime(2000);
   }
 
   String _formatDistance(dynamic value) {
@@ -383,7 +476,7 @@ class _HomeListContentState extends ConsumerState<HomeListContent> {
     return "";
   }
 
-  String _firstImageUrl(dynamic item) {
+  String _firstImageUrl(Map<String, dynamic> item) {
     try {
       final images = item['images'];
       if (images is List && images.isNotEmpty) return images[0];
@@ -391,20 +484,56 @@ class _HomeListContentState extends ConsumerState<HomeListContent> {
     return "https://via.placeholder.com/200x120";
   }
 
-  Widget _buildHeader(String title, {bool showSeeAll = true, VoidCallback? onSeeAll}) {
+  void _navigateToViewAll(
+    BuildContext context,
+    String title,
+    String cat, {
+    List<String>? list,
+  }) {
+    context.goToViewAll(
+      title: title,
+      category: cat,
+      categories: list,
+      lat: lat,
+      lng: lng,
+    );
+  }
+
+  Widget _buildHeader(
+    String title, {
+    bool showSeeAll = true,
+    VoidCallback? onSeeAll,
+  }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1A1C1E))),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF1A1C1E),
+            ),
+          ),
           if (showSeeAll)
             InkWell(
               onTap: onSeeAll,
-              child: const Text("See all", style: TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.w600)),
+              child: const Text(
+                "See all",
+                style: TextStyle(
+                  color: Colors.green,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
         ],
       ),
     );
   }
 }
+
+/// Provider for ApiService
+final apiServiceProvider = Provider<ApiService>((ref) => ApiService());

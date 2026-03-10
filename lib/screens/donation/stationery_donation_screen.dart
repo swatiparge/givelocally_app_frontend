@@ -23,7 +23,8 @@ class StationeryDonationScreen extends ConsumerStatefulWidget {
       _StationeryDonationScreenState();
 }
 
-class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScreen> {
+class _StationeryDonationScreenState
+    extends ConsumerState<StationeryDonationScreen> {
   final _formKey = GlobalKey<FormState>();
   int _currentStep = 1;
   bool _isLoading = false;
@@ -159,8 +160,10 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
       }
 
       String stationeryTypeSlug = "supplies";
-      if (_category == "Books & Textbooks") stationeryTypeSlug = "books";
-      else if (_category == "Notebooks") stationeryTypeSlug = "notebooks";
+      if (_category == "Books & Textbooks")
+        stationeryTypeSlug = "books";
+      else if (_category == "Notebooks")
+        stationeryTypeSlug = "notebooks";
 
       final now = DateTime.now();
       final payload = {
@@ -168,52 +171,79 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
           "category": "stationery",
           "stationery_type": stationeryTypeSlug,
           "title": "${_category}: ${_class} - ${_board}",
-          "description": "Complete set for ${_class}. Subjects: ${_selectedSubjects.join(', ')}. Condition: ${_marking}",
+          "description":
+              "Complete set for ${_class}. Subjects: ${_selectedSubjects.join(', ')}. Condition: ${_marking}",
           "images": imageUrls,
           "condition": "good",
           "location": {"_latitude": _lat, "_longitude": _lng},
           "address": _selectedAddress,
           "quantity": _quantity,
-          "marking_level": _marking.toLowerCase().contains("pencil") ? "minimal" : "moderate",
+          "marking_level": _marking.toLowerCase().contains("pencil")
+              ? "minimal"
+              : "moderate",
           "board": _board,
           "subjects": _selectedSubjects,
           "pickup_window": {
-            "start_date": {"_seconds": now.millisecondsSinceEpoch ~/ 1000, "_nanoseconds": 0},
-            "end_date": {"_seconds": now.add(const Duration(days: 2)).millisecondsSinceEpoch ~/ 1000, "_nanoseconds": 0},
+            "start_date": {
+              "_seconds": now.millisecondsSinceEpoch ~/ 1000,
+              "_nanoseconds": 0,
+            },
+            "end_date": {
+              "_seconds":
+                  now.add(const Duration(days: 2)).millisecondsSinceEpoch ~/
+                  1000,
+              "_nanoseconds": 0,
+            },
           },
         },
       };
 
       final response = await http.post(
         Uri.parse("https://createdonation-u6nq5a5ajq-as.a.run.app"),
-        headers: {"Content-Type": "application/json", if (idToken != null) "Authorization": "Bearer $idToken"},
+        headers: {
+          "Content-Type": "application/json",
+          if (idToken != null) "Authorization": "Bearer $idToken",
+        },
         body: jsonEncode(payload),
       );
 
       if (response.statusCode == 200) {
         if (mounted) _showSuccessDialog();
       } else {
-        throw Exception(jsonDecode(response.body)['error']?['message'] ?? "Failed to post");
+        throw Exception(
+          jsonDecode(response.body)['error']?['message'] ?? "Failed to post",
+        );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.redAccent));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.redAccent),
+      );
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
   void _showSuccessDialog() {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => DonationSuccessView(
-      onPostAnother: () {
-        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
-      },
-      onViewDonation: () {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const MyDonationsScreen()),
-          (route) => route.isFirst,
-        );
-      },
-    )));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DonationSuccessView(
+          onPostAnother: () {
+            Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/home', (route) => false);
+          },
+          onViewDonation: () {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (context) => const MyDonationsScreen(),
+              ),
+              (route) => route.isFirst,
+            );
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -225,9 +255,14 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => _currentStep == 2 ? setState(() => _currentStep = 1) : Navigator.pop(context),
+          onPressed: () => _currentStep == 2
+              ? setState(() => _currentStep = 1)
+              : Navigator.pop(context),
         ),
-        title: const Text("Donate Stationery", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: const Text(
+          "Donate Stationery",
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
       ),
       body: SingleChildScrollView(
         child: Form(
@@ -248,9 +283,25 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
       padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 10),
       child: Row(
         children: [
-          Expanded(child: Container(height: 6, decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(10)))),
+          Expanded(
+            child: Container(
+              height: 6,
+              decoration: BoxDecoration(
+                color: Colors.green,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
           const SizedBox(width: 8),
-          Expanded(child: Container(height: 6, decoration: BoxDecoration(color: _currentStep == 2 ? Colors.green : Colors.grey.shade200, borderRadius: BorderRadius.circular(10)))),
+          Expanded(
+            child: Container(
+              height: 6,
+              decoration: BoxDecoration(
+                color: _currentStep == 2 ? Colors.green : Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -266,7 +317,11 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
           DropdownButtonFormField<String>(
             value: _category,
             decoration: _inputDeco(""),
-            items: ["Books & Textbooks", "Notebooks", "School Kits"].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+            items: [
+              "Books & Textbooks",
+              "Notebooks",
+              "School Kits",
+            ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
             onChanged: (v) => setState(() => _category = v!),
           ),
           const SizedBox(height: 25),
@@ -274,13 +329,22 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
           const SizedBox(height: 25),
           _buildQuantityCounter(),
           const SizedBox(height: 25),
-          const Text("Condition / Markings", style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            "Condition / Markings",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 12),
           _conditionCard("Brand New", "Unused, in original packaging"),
           const SizedBox(height: 12),
-          _conditionCard("Light Pencil Notes", "Erasable markings, good condition"),
+          _conditionCard(
+            "Light Pencil Notes",
+            "Erasable markings, good condition",
+          ),
           const SizedBox(height: 12),
-          _conditionCard("Highlighted / Pen Marks", "Readable content, but marked"),
+          _conditionCard(
+            "Highlighted / Pen Marks",
+            "Readable content, but marked",
+          ),
           const SizedBox(height: 25),
           _buildPhotoSection(),
           const SizedBox(height: 30),
@@ -299,7 +363,10 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Where is the pickup?", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          const Text(
+            "Where is the pickup?",
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 30),
           LocationPickerField(
             selectedLocation: LatLng(_lat, _lng),
@@ -312,7 +379,9 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
                 _selectedAddress = addr;
                 _addressController.text = addr;
               });
-              WidgetsBinding.instance.addPostFrameCallback((_) => _suppressAddressSync = false);
+              WidgetsBinding.instance.addPostFrameCallback(
+                (_) => _suppressAddressSync = false,
+              );
             },
           ),
           const SizedBox(height: 20),
@@ -324,7 +393,10 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
             validator: (v) => v!.isEmpty ? "Address is required" : null,
           ),
           const SizedBox(height: 60),
-          _buildButton(_isLoading ? "Posting..." : "Confirm & Post Donation", _isLoading ? null : _submitDonation),
+          _buildButton(
+            _isLoading ? "Posting..." : "Confirm & Post Donation",
+            _isLoading ? null : _submitDonation,
+          ),
         ],
       ),
     );
@@ -333,11 +405,51 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
   Widget _buildQuantityCounter() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade100)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
       child: Row(
         children: [
-          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Quantity", style: TextStyle(fontWeight: FontWeight.bold)), Text("Total items in set", style: TextStyle(fontSize: 10, color: Colors.grey))])),
-          Container(decoration: BoxDecoration(color: const Color(0xFFF8F9FA), borderRadius: BorderRadius.circular(12)), child: Row(children: [IconButton(icon: const Icon(Icons.remove, size: 18), onPressed: () => setState(() => _quantity > 1 ? _quantity-- : null)), Text("$_quantity", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), IconButton(icon: const Icon(Icons.add, size: 18), onPressed: () => setState(() => _quantity++))])),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Quantity", style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  "Total items in set",
+                  style: TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F9FA),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.remove, size: 18),
+                  onPressed: () =>
+                      setState(() => _quantity > 1 ? _quantity-- : null),
+                ),
+                Text(
+                  "$_quantity",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add, size: 18),
+                  onPressed: () => setState(() => _quantity++),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -347,7 +459,16 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Photos", style: TextStyle(fontWeight: FontWeight.bold)), Text("${_images.length}/5", style: const TextStyle(fontSize: 12, color: Colors.grey))]),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text("Photos", style: TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              "${_images.length}/5",
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
         SizedBox(
           height: 90,
@@ -361,21 +482,69 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
                   onTap: _takePhoto,
                   child: Container(
                     width: 90,
-                    decoration: BoxDecoration(color: const Color(0xFFF1F8E9), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.green.shade200)),
-                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_a_photo, color: Colors.green.shade600, size: 24), const Text("Add Photo", style: TextStyle(color: Colors.green, fontSize: 10))]),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F8E9),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_a_photo,
+                          color: Colors.green.shade600,
+                          size: 24,
+                        ),
+                        const Text(
+                          "Add Photo",
+                          style: TextStyle(color: Colors.green, fontSize: 10),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }
               final imgIndex = index - 1;
-              return Stack(children: [
-                ClipRRect(borderRadius: BorderRadius.circular(16), child: Image.file(_images[imgIndex], width: 90, height: 90, fit: BoxFit.cover)),
-                Positioned(right: 4, top: 4, child: InkWell(onTap: () => setState(() => _images.removeAt(imgIndex)), child: Container(padding: const EdgeInsets.all(2), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.close, color: Colors.white, size: 14)))),
-              ]);
+              return Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.file(
+                      _images[imgIndex],
+                      width: 90,
+                      height: 90,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Positioned(
+                    right: 4,
+                    top: 4,
+                    child: InkWell(
+                      onTap: () => setState(() => _images.removeAt(imgIndex)),
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
             },
           ),
         ),
         const SizedBox(height: 8),
-        const Text("Please upload at least one photo of the cover and one of an inside page.", style: TextStyle(fontSize: 11, color: Colors.grey)),
+        const Text(
+          "Please upload at least one photo of the cover and one of an inside page.",
+          style: TextStyle(fontSize: 11, color: Colors.grey),
+        ),
       ],
     );
   }
@@ -383,8 +552,23 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
   Widget _buildTrustGuarantee() {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFFF0F7FF), borderRadius: BorderRadius.circular(16)),
-      child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.verified_user, color: Colors.blue, size: 18), SizedBox(width: 8), Expanded(child: Text("Trust Guarantee: Your ₹50 promise fee is refunded after successful pickup.", style: TextStyle(fontSize: 11, color: Colors.blue)))]),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F7FF),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.verified_user, color: Colors.blue, size: 18),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              "Trust Guarantee: Your ₹9 reservation fee helps maintain the platform.",
+              style: TextStyle(fontSize: 11, color: Colors.blue),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -394,8 +578,38 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
       onTap: () => setState(() => _marking = title),
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: isSelected ? const Color(0xFFF1F8E9) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isSelected ? Colors.green : Colors.grey.shade200, width: 1.5)),
-        child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold)), Text(sub, style: const TextStyle(fontSize: 11, color: Colors.grey))])), Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_off, color: isSelected ? Colors.green : Colors.grey.shade300, size: 22)]),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFF1F8E9) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? Colors.green : Colors.grey.shade200,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    sub,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: isSelected ? Colors.green : Colors.grey.shade300,
+              size: 22,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -403,30 +617,127 @@ class _StationeryDonationScreenState extends ConsumerState<StationeryDonationScr
   Widget _buildBookDetailsCard() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [Icon(Icons.menu_book, color: Colors.green.shade600, size: 20), const SizedBox(width: 8), const Text("Book Details", style: TextStyle(fontWeight: FontWeight.bold))]),
+          Row(
+            children: [
+              Icon(Icons.menu_book, color: Colors.green.shade600, size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                "Book Details",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
           const SizedBox(height: 15),
           _smallLabel("Education Board"),
-          DropdownButtonFormField<String>(value: _board, decoration: _inputDeco(""), items: ["CBSE", "ICSE", "State Board"].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (v) => setState(() => _board = v!)),
+          DropdownButtonFormField<String>(
+            value: _board,
+            decoration: _inputDeco(""),
+            items: [
+              "CBSE",
+              "ICSE",
+              "State Board",
+            ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+            onChanged: (v) => setState(() => _board = v!),
+          ),
           const SizedBox(height: 15),
           _smallLabel("Class / Standard"),
-          DropdownButtonFormField<String>(value: _class, decoration: _inputDeco(""), items: ["Class 9", "Class 10", "Class 11", "Class 12"].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (v) => setState(() => _class = v!)),
+          DropdownButtonFormField<String>(
+            value: _class,
+            decoration: _inputDeco(""),
+            items: [
+              "Class 9",
+              "Class 10",
+              "Class 11",
+              "Class 12",
+            ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+            onChanged: (v) => setState(() => _class = v!),
+          ),
           const SizedBox(height: 15),
           _smallLabel("Subjects Included"),
-          Wrap(spacing: 8, runSpacing: 8, children: _subjects.map((sub) {
-            bool isSelected = _selectedSubjects.contains(sub);
-            return FilterChip(label: Text(sub, style: TextStyle(color: isSelected ? Colors.white : Colors.grey, fontSize: 12)), selected: isSelected, selectedColor: Colors.green.shade600, checkmarkColor: Colors.white, onSelected: (val) => setState(() => val ? _selectedSubjects.add(sub) : _selectedSubjects.remove(sub)), backgroundColor: Colors.white, shape: StadiumBorder(side: BorderSide(color: isSelected ? Colors.green.shade600 : Colors.grey.shade200)));
-          }).toList()),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _subjects.map((sub) {
+              bool isSelected = _selectedSubjects.contains(sub);
+              return FilterChip(
+                label: Text(
+                  sub,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.grey,
+                    fontSize: 12,
+                  ),
+                ),
+                selected: isSelected,
+                selectedColor: Colors.green.shade600,
+                checkmarkColor: Colors.white,
+                onSelected: (val) => setState(
+                  () => val
+                      ? _selectedSubjects.add(sub)
+                      : _selectedSubjects.remove(sub),
+                ),
+                backgroundColor: Colors.white,
+                shape: StadiumBorder(
+                  side: BorderSide(
+                    color: isSelected
+                        ? Colors.green.shade600
+                        : Colors.grey.shade200,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         ],
       ),
     );
   }
 
-  Widget _label(String t) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(t, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)));
-  Widget _smallLabel(String t) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(t, style: const TextStyle(fontSize: 13, color: Colors.grey)));
-  InputDecoration _inputDeco(String hint) => InputDecoration(hintText: hint, filled: true, fillColor: const Color(0xFFF8F9FA), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none), errorStyle: const TextStyle(color: Colors.redAccent));
-  Widget _buildButton(String text, VoidCallback? action) => SizedBox(width: double.infinity, height: 56, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF66BB6A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)), elevation: 0), onPressed: action, child: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))));
+  Widget _label(String t) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      t,
+      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+    ),
+  );
+  Widget _smallLabel(String t) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(t, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+  );
+  InputDecoration _inputDeco(String hint) => InputDecoration(
+    hintText: hint,
+    filled: true,
+    fillColor: const Color(0xFFF8F9FA),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide.none,
+    ),
+    errorStyle: const TextStyle(color: Colors.redAccent),
+  );
+  Widget _buildButton(String text, VoidCallback? action) => SizedBox(
+    width: double.infinity,
+    height: 56,
+    child: ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF66BB6A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        elevation: 0,
+      ),
+      onPressed: action,
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+    ),
+  );
 }

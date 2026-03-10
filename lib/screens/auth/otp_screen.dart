@@ -85,8 +85,14 @@ class _OTPScreenState extends ConsumerState<OTPScreen> {
       if (!mounted || _disposed) return;
 
       if (success) {
-        // Check if new user
-        if (authService.userModel?.name == null) {
+        // Check if new user (userModel null or name empty)
+        final userModel = authService.userModel;
+        final isNewUser =
+            userModel == null ||
+            userModel.name == null ||
+            userModel.name!.isEmpty;
+
+        if (isNewUser) {
           // New user → Location Setup (WF-14) → Profile Setup (WF-03)
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(

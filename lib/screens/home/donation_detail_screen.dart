@@ -1,51 +1,28 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
+import '../../routes/app_router.dart';
 import '../chat/chat_screen.dart';
 
 class DonationDetailScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> donation;
-
-  // If provided (or present as donation['id']), the screen fetches the latest
-  // donation data from Firestore.
-  final String? donationId;
-
-  const DonationDetailScreen({
-    super.key,
-    required this.donation,
-    this.donationId,
-  });
+  const DonationDetailScreen({super.key, required this.donation});
 
   @override
-  ConsumerState<DonationDetailScreen> createState() => _DonationDetailScreenState();
+  ConsumerState<DonationDetailScreen> createState() =>
+      _DonationDetailScreenState();
 }
 
 class _DonationDetailScreenState extends ConsumerState<DonationDetailScreen> {
-  final PageController _pageController = PageController();
+  late PageController _pageController;
   int _activeImageIndex = 0;
   bool _expandedDescription = false;
-  Stream<DocumentSnapshot<Map<String, dynamic>>>? _donationStream;
-
-  String? get _id {
-    final fromParam = widget.donationId;
-    if (fromParam != null && fromParam.trim().isNotEmpty) return fromParam;
-    final fromMap = widget.donation['id'];
-    if (fromMap is String && fromMap.trim().isNotEmpty) return fromMap;
-    return null;
-  }
 
   @override
   void initState() {
     super.initState();
-    final id = _id;
-    if (id != null) {
-      // Initialize stream once to prevent "refreshing" on every build
-      _donationStream = FirebaseFirestore.instance
-          .collection('donations')
-          .doc(id)
-          .snapshots();
-    }
+    _pageController = PageController();
   }
 
   @override
@@ -54,397 +31,145 @@ class _DonationDetailScreenState extends ConsumerState<DonationDetailScreen> {
     super.dispose();
   }
 
-  DateTime? _toDate(dynamic value) {
-    if (value == null) return null;
-    if (value is Timestamp) return value.toDate();
-    if (value is Map) {
-      final seconds = value['_seconds'];
-      if (seconds is int) {
-        return DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
-      }
-    }
-    return null;
-  }
-
-  String _expiryLabel(Map<String, dynamic> d) {
-    DateTime? end;
-
-    final pickupWindow = d['pickup_window'];
-    if (pickupWindow is Map) {
-      end = _toDate(pickupWindow['end_date']);
-    }
-    end ??= _toDate(d['expiry_date']);
-    if (end == null) return '';
-
-    final diff = end.difference(DateTime.now());
-    if (diff.isNegative) return 'Expired';
-
-    final h = diff.inHours;
-    final m = diff.inMinutes.remainder(60);
-    if (h >= 1) return 'Expires in ${h}h ${m}m';
-    return 'Expires in ${diff.inMinutes}m';
-  }
+  String? get _id => widget.donation['id']?.toString();
 
   List<String> _imagesFrom(Map<String, dynamic> d) {
-    final raw = d['images'];
-    if (raw is List) {
-      return raw.whereType<String>().where((s) => s.trim().isNotEmpty).toList();
-    }
-    if (raw is String && raw.trim().isNotEmpty) return [raw.trim()];
-    return const [];
+    final imgs = d['images'];
+    if (imgs is List) return imgs.map((e) => e.toString()).toList();
+    return [];
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_donationStream != null) {
-      return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: _donationStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          final data = snapshot.data?.data();
-          if (data == null && !snapshot.hasData) {
-            return const Scaffold(
-              body: Center(child: Text('Donation not found')),
-            );
-          }
-          final merged = <String, dynamic>{'id': _id, ...(data ?? widget.donation)};
-          return _buildUI(context, merged);
-        },
-      );
-    }
-
-    return _buildUI(context, widget.donation);
-  }
-
-  Widget _buildUI(BuildContext context, Map<String, dynamic> d) {
+    final d = widget.donation;
     final images = _imagesFrom(d);
-    final title = (d['title'] ?? 'Donation').toString();
-    final category = (d['category'] ?? 'other').toString();
-    final condition = (d['condition'] ?? 'good').toString();
-    final description = (d['description'] ?? '').toString();
 
-    final expiry = _expiryLabel(d);
-    final donorName = (d['donorName'] ?? d['donor_name'] ?? 'Donor').toString();
-    final donorKarma = d['donorKarma'] ?? d['karma'] ?? 50;
-    final distance = d['distance'];
+    final currentUserId = ref.watch(userIdProvider);
+    final donorId = d['donorId'] ?? d['userId'];
+    final isPostedByMe = currentUserId != null && currentUserId == donorId;
+
+    // Use current user's name if it's their donation
+    final String donorName = isPostedByMe
+        ? (ref.watch(userNameProvider) ?? "You")
+        : (d['donorName'] ??
+              d['donor_name'] ??
+              d['userName'] ??
+              d['username'] ??
+              d['name'] ??
+              'Anonymous Donor');
+
+    final String donorImage = isPostedByMe
+        ? (ref.watch(userProfilePictureProvider) ?? "")
+        : (d['donorImage'] ?? d['userImage'] ?? d['profilePicture'] ?? "");
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      body: SafeArea(
-        bottom: false,
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: Row(
-                  children: [
-                    _roundIcon(
-                      icon: Icons.arrow_back,
-                      onTap: () => Navigator.pop(context),
-                    ),
-                    const Spacer(),
-                    _roundIcon(icon: Icons.share_outlined, onTap: () {}),
-                    const SizedBox(width: 10),
-                    _roundIcon(
-                      icon: Icons.favorite,
-                      onTap: () {},
-                      filled: true,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _imageCarousel(images),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                child: _thumbnailRow(images),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF1A1C1E),
+      backgroundColor: const Color(0xFFF9FAFB),
+      body: CustomScrollView(
+        slivers: [
+          _buildAppBar(context, images),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _donorCard(
+                    donorName: donorName,
+                    donorKarma: d['donorKarma'] ?? 0,
+                    donorImage: donorImage,
                   ),
-                ),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: Row(
-                  children: [
-                    const Text(
-                      'Free',
-                      style: TextStyle(
-                        color: Color(0xFF2E7D32),
-                        fontWeight: FontWeight.w800,
-                      ),
+                  const SizedBox(height: 24),
+                  Text(
+                    d['title'] ?? 'No Title',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF111827),
+                      letterSpacing: -0.5,
                     ),
-                    if (expiry.isNotEmpty) ...[
-                      const SizedBox(width: 10),
-                      Icon(
-                        Icons.timer_outlined,
-                        size: 14,
-                        color: Colors.orange.shade700,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        expiry,
-                        style: TextStyle(
-                          color: Colors.orange.shade700,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                child: _donorCard(donorName: donorName, donorKarma: donorKarma),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: const Text(
-                  'Item Details',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF1A1C1E),
                   ),
-                ),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _detailsGrid(
-                  category: category,
-                  condition: condition,
-                  quantity: d['food_quantity'] ?? d['quantity'] ?? 1,
-                ),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
-                child: const Text(
-                  'Description',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF1A1C1E),
+                  const SizedBox(height: 16),
+                  _detailsGrid(
+                    category: d['category'] ?? 'Other',
+                    condition: d['condition'] ?? 'Used',
+                    quantity: d['quantity'] ?? 1,
                   ),
-                ),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _descriptionBlock(description),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Location',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF1A1C1E),
-                        ),
-                      ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Description',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF111827),
                     ),
-                    if (distance is num)
-                      Text(
-                        '${distance.toStringAsFixed(1)} km away',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF6B7280),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 12),
+                  _descriptionBlock(d['description'] ?? ''),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Location',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _hiddenLocationCard(),
+                  const SizedBox(height: 100),
+                ],
               ),
             ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _hiddenLocationCard(),
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 110)),
-          ],
-        ),
+          ),
+        ],
       ),
-      bottomNavigationBar: _bottomBar(context, d),
+      bottomNavigationBar: _bottomBar(context, d, isPostedByMe, currentUserId),
     );
   }
 
-  Widget _roundIcon({
-    required IconData icon,
-    required VoidCallback onTap,
-    bool filled = false,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: filled ? const Color(0xFFFFEBEE) : Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.black.withOpacity(0.08)),
-        ),
-        child: Icon(
-          icon,
-          size: 18,
-          color: filled ? const Color(0xFFE53935) : const Color(0xFF111827),
+  Widget _buildAppBar(BuildContext context, List<String> images) {
+    return SliverAppBar(
+      expandedHeight: 340,
+      pinned: true,
+      backgroundColor: Colors.white,
+      elevation: 0,
+      leading: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: CircleAvatar(
+          backgroundColor: Colors.white,
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black),
+            onPressed: () => Navigator.pop(context),
+          ),
         ),
       ),
-    );
-  }
-
-  Widget _imageCarousel(List<String> images) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: AspectRatio(
-        aspectRatio: 16 / 10,
-        child: Stack(
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
           children: [
-            if (images.isNotEmpty)
-              PageView.builder(
-                controller: _pageController,
-                itemCount: images.length,
-                onPageChanged: (i) => setState(() => _activeImageIndex = i),
-                itemBuilder: (context, i) => Image.network(
-                  images[i],
-                  fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => Container(
+            PageView.builder(
+              controller: _pageController,
+              onPageChanged: (i) => setState(() => _activeImageIndex = i),
+              itemCount: images.isEmpty ? 1 : images.length,
+              itemBuilder: (context, i) {
+                if (images.isEmpty) {
+                  return Container(
                     color: Colors.grey.shade200,
-                    child: const Center(
-                      child: Icon(Icons.image, color: Colors.grey, size: 40),
+                    child: const Icon(
+                      Icons.image,
+                      size: 64,
+                      color: Colors.grey,
                     ),
-                  ),
-                ),
-              )
-            else
-              Container(
-                color: Colors.grey.shade200,
-                child: const Center(
-                  child: Icon(Icons.image, color: Colors.grey, size: 40),
-                ),
-              ),
-
-            Positioned(
-              top: 10,
-              left: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF22C55E),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.check_circle, size: 14, color: Colors.black),
-                    SizedBox(width: 6),
-                    Text(
-                      'Available',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                  );
+                }
+                return Image.network(images[i], fit: BoxFit.cover);
+              },
             ),
-
-            if (images.length > 1)
-              Positioned(
-                bottom: 10,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(images.length, (i) {
-                    final active = i == _activeImageIndex;
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      width: active ? 18 : 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    );
-                  }),
-                ),
-              ),
-
-            if (images.length > 1)
-              Positioned(
-                right: 10,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.35),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(Icons.chevron_right, color: Colors.white),
-                  ),
-                ),
-              ),
+            Positioned(
+              left: 20,
+              right: 20,
+              bottom: 20,
+              child: _thumbnailRow(images),
+            ),
           ],
         ),
       ),
@@ -463,7 +188,6 @@ class _DonationDetailScreenState extends ConsumerState<DonationDetailScreen> {
           final active = i == _activeImageIndex;
           return InkWell(
             onTap: () {
-              // Only animate if not already active to prevent jitter
               if (_activeImageIndex != i) {
                 _pageController.animateToPage(
                   i,
@@ -500,7 +224,11 @@ class _DonationDetailScreenState extends ConsumerState<DonationDetailScreen> {
     );
   }
 
-  Widget _donorCard({required String donorName, required dynamic donorKarma}) {
+  Widget _donorCard({
+    required String donorName,
+    required dynamic donorKarma,
+    String? donorImage,
+  }) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -510,10 +238,15 @@ class _DonationDetailScreenState extends ConsumerState<DonationDetailScreen> {
       ),
       child: Row(
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 18,
-            backgroundColor: Color(0xFFE5E7EB),
-            child: Icon(Icons.person, color: Color(0xFF111827)),
+            backgroundColor: const Color(0xFFE5E7EB),
+            backgroundImage: donorImage != null && donorImage.isNotEmpty
+                ? NetworkImage(donorImage)
+                : null,
+            child: donorImage == null || donorImage.isEmpty
+                ? const Icon(Icons.person, color: Color(0xFF111827))
+                : null,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -554,16 +287,6 @@ class _DonationDetailScreenState extends ConsumerState<DonationDetailScreen> {
                   ),
                 ),
               ],
-            ),
-          ),
-          TextButton(
-            onPressed: () {},
-            child: const Text(
-              'View Profile',
-              style: TextStyle(
-                color: Color(0xFF22C55E),
-                fontWeight: FontWeight.w900,
-              ),
             ),
           ),
         ],
@@ -788,11 +511,7 @@ class _DonationDetailScreenState extends ConsumerState<DonationDetailScreen> {
         const SizedBox(height: 10),
         Row(
           children: const [
-            Icon(
-              Icons.place_outlined,
-              size: 16,
-              color: Color(0xFF6B7280),
-            ),
+            Icon(Icons.place_outlined, size: 16, color: Color(0xFF6B7280)),
             SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -812,11 +531,13 @@ class _DonationDetailScreenState extends ConsumerState<DonationDetailScreen> {
     );
   }
 
-  Widget _bottomBar(BuildContext context, Map<String, dynamic> donation) {
-    final currentUserId = ref.watch(userIdProvider);
-    final donorId = donation['donorId'] ?? donation['userId'];
-    final isPostedByMe = currentUserId != null && currentUserId == donorId;
-    final images = _imagesFrom(donation);
+  Widget _bottomBar(
+    BuildContext context,
+    Map<String, dynamic> d,
+    bool isPostedByMe,
+    String? currentUserId,
+  ) {
+    final images = _imagesFrom(d);
 
     return SafeArea(
       top: false,
@@ -834,44 +555,47 @@ class _DonationDetailScreenState extends ConsumerState<DonationDetailScreen> {
         ),
         child: Row(
           children: [
-            SizedBox(
-              width: 56,
-              height: 56,
-              child: InkWell(
-                onTap: () {
-                  final id = _id;
-                  if (id != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChatScreen(
-                          donationId: id,
-                          itemName: (donation['title'] ?? 'Item').toString(),
-                          itemImage: images.isNotEmpty ? images.first : null,
+            if (!isPostedByMe) ...[
+              SizedBox(
+                width: 56,
+                height: 56,
+                child: InkWell(
+                  onTap: () {
+                    final id = _id;
+                    if (id != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatScreen(
+                            donationId: id,
+                            itemName: (d['title'] ?? 'Item').toString(),
+                            itemImage: images.isNotEmpty ? images.first : null,
+                            requesterId: currentUserId,
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(14),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.chat_bubble_outline, color: Color(0xFF111827)),
+                      SizedBox(height: 2),
+                      Text(
+                        'Chat',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    );
-                  }
-                },
-                borderRadius: BorderRadius.circular(14),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.chat_bubble_outline, color: Color(0xFF111827)),
-                    SizedBox(height: 2),
-                    Text(
-                      'Chat',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
+              const SizedBox(width: 12),
+            ],
             if (!isPostedByMe)
               Expanded(
                 child: SizedBox(
@@ -886,10 +610,9 @@ class _DonationDetailScreenState extends ConsumerState<DonationDetailScreen> {
                       ),
                     ),
                     onPressed: () {
-                      Navigator.pushNamed(
-                        context,
-                        '/reserve-item',
-                        arguments: donation,
+                      context.push(
+                        AppRouter.reserveItem,
+                        extra: widget.donation,
                       );
                     },
                     child: Column(

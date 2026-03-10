@@ -1,7 +1,8 @@
 class Environment {
   static const bool useEmulator = false;
 
-  static const String functionsRegion = 'asia-south1';
+  // Region changed to asia-southeast1 to match ApiService and working backend
+  static const String functionsRegion = 'asia-southeast1';
 
   static const String authEmulatorHost = '127.0.0.1';
   static const int authEmulatorPort = 9099;

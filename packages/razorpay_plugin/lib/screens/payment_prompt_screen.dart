@@ -143,7 +143,7 @@ class _PaymentPromptScreenState extends State<PaymentPromptScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    '₹50',
+                    '₹9',
                     style: TextStyle(
                       fontSize: 48,
                       fontWeight: FontWeight.bold,
@@ -176,7 +176,7 @@ class _PaymentPromptScreenState extends State<PaymentPromptScreen> {
               child: _isLoading
                   ? const CircularProgressIndicator(color: Colors.white)
                   : const Text(
-                      'PAY ₹50',
+                      'PAY ₹9',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
