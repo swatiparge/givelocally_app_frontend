@@ -3,7 +3,7 @@ class RazorpayConfig {
   /// Razorpay API Key ID (Test or Live)
   final String keyId;
 
-  /// Amount to hold in paise (e.g., 5000 for ₹50)
+  /// Amount to hold in paise (e.g., 900 for ₹9)
   final int amount;
 
   /// Currency code (default: INR)
@@ -38,10 +38,10 @@ class RazorpayConfig {
 
   const RazorpayConfig({
     required this.keyId,
-    this.amount = 5000,
+    this.amount = 900,
     this.currency = 'INR',
     required this.merchantName,
-    this.description = 'Promise Fee (Refundable)',
+    this.description = 'Promise Fee (Non-refundable)',
     this.functionRegion = 'asia-southeast1',
     this.themeColor = '4CAF50',
     this.enableUPI = true,

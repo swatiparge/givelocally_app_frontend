@@ -1,0 +1,145 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isBanned() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc.data.is_banned == true;
+    }
+
+    function isDonor(donationId) {
+      let donation = get(/databases/$(database)/documents/donations/$(donationId));
+      return donation.data.donorId == request.auth.uid;
+    }
+
+
+    function canAccessChat(donationId) {
+      let donation = get(/databases/$(database)/documents/donations/$(donationId));
+
+      return (
+        // Phase 1: active → any authenticated & not banned
+        (donation.data.status == "active" &&
+          request.auth != null &&
+          !isBanned()) ||
+
+        // Phase 2: reserved/completed → donor or receiver
+        (
+          (donation.data.status == "reserved" ||
+          donation.data.status == "completed") &&
+          (
+            donation.data.donorId == request.auth.uid ||
+            donation.data.claimed_by == request.auth.uid
+          )
+        )
+      );
+    }
+
+
+
+
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
+
+    match /users/{userId} {
+      // Anyone authenticated can read profiles
+      allow read: if isAuthenticated();
+
+      // Only owner can create their profile
+      allow create: if isAuthenticated() && isOwner(userId);
+
+      // Only owner can update their profile (if not banned)
+      allow update: if isAuthenticated() && isOwner(userId) && !isBanned();
+
+      // No deletes (use is_banned flag instead)
+      allow delete: if false;
+    }
+
+    // ============================================
+    // OTP STORE (PRIVATE - Cloud Functions only)
+    // ⚠️ CRITICAL SECURITY: Users must NEVER access this
+    // ============================================
+
+    match /otp_store/{phone} {
+      allow read, write: if false;
+    }
+
+    // ============================================
+    // ADMINS COLLECTION (Read-only for admins)
+    // ============================================
+
+    match /admins/{userId} {
+      allow read: if isAuthenticated() &&
+                      exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      allow write: if false;
+    }
+
+    // ============================================
+    // DONATIONS COLLECTION
+    // ============================================
+
+    match /donations/{donationId} {
+      // Anyone authenticated can read
+      allow read: if isAuthenticated();
+
+      // Only non-banned users can create
+      allow create: if isAuthenticated() &&
+                       request.resource.data.donorId == request.auth.uid &&
+                       !isBanned();
+
+      // Only donor can update (except reserved/completed status)
+      allow update: if isAuthenticated() &&
+                       resource.data.donorId == request.auth.uid &&
+                       !isBanned() &&
+                       request.resource.data.status != 'reserved'; // System-managed
+
+      allow delete: if false; // Use status: "expired" instead
+
+      // ============================================
+      // SUBCOLLECTIONS (nested inside donations)
+      // ============================================
+
+      // Chat subcollection with dual-phase access control
+      match /chat/{messageId} {
+        // Read access based on donation status
+        allow read: if isAuthenticated() && canAccessChat(donationId) && !isBanned();
+
+        // Create access based on donation status
+        allow create: if isAuthenticated() && canAccessChat(donationId) && !isBanned();
+      }
+
+      // Requests subcollection
+      match /requests/{requestId} {
+        allow read: if isAuthenticated();
+
+        allow create: if isAuthenticated() &&
+                         request.resource.data.receiverId == request.auth.uid &&
+                         !isBanned();
+
+        allow update: if isAuthenticated() && isDonor(donationId);
+      }
+    }
+
+    // ============================================
+    // DEFAULT DENY ALL (Catch-all rule)
+    // ============================================
+
+    match /{document=**} {
+      // Deny everything not explicitly allowed above
+      allow read, write: if false;
+    }
+  }
+}

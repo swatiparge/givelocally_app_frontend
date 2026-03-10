@@ -1,26 +1,33 @@
 // lib/widgets/app_header.dart
+// App header with notification badge using Riverpod
 
 import 'package:flutter/material.dart';
-import '../screens/notifications/notifications_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../providers/notification_provider.dart';
+import '../routes/app_router.dart';
 
-class AppHeader extends StatelessWidget implements PreferredSizeWidget {
+class AppHeader extends ConsumerWidget implements PreferredSizeWidget {
   final String location;
-  final VoidCallback onNotificationTap;
   final VoidCallback onMenuTap;
+  final VoidCallback? onLocationTap;
 
   const AppHeader({
     super.key,
     this.location = "Indiranagar, Bangalore",
-    required this.onNotificationTap,
     required this.onMenuTap,
+    this.onLocationTap,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch unread notification count
+    final unreadCount = ref.watch(unreadCountProvider);
+    final hasNewNotification = ref.watch(hasNewNotificationProvider);
+
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
-      // FIXED: Disable automatic leading/drawer icons to prevent duplicates
       automaticallyImplyLeading: false,
       actions: [const SizedBox.shrink()],
       centerTitle: false,
@@ -43,13 +50,15 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                   ),
                 ),
                 InkWell(
-                  onTap: () {
-                    // Logic for WF-14: Location Picker
-                  },
+                  onTap: onLocationTap,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.location_on, size: 14, color: Colors.green.shade600),
+                      Icon(
+                        Icons.location_on,
+                        size: 14,
+                        color: Colors.green.shade600,
+                      ),
                       const SizedBox(width: 2),
                       Flexible(
                         child: Text(
@@ -62,7 +71,11 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.green.shade600),
+                      Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 16,
+                        color: Colors.green.shade600,
+                      ),
                     ],
                   ),
                 ),
@@ -70,27 +83,20 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
             ),
           ),
 
-          // --- RIGHT SIDE: NOTIFICATIONS & MENU (Clustered) ---
+          // --- RIGHT SIDE: NOTIFICATIONS & MENU ---
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 1. Notification Bell
-              _buildHeaderAction(
-                icon: Icons.notifications_none_outlined,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const NotificationsScreen()),
-                  );
-                },
-                hasBadge: true,
+              // Notification Bell with Badge
+              _buildNotificationButton(
+                context: context,
+                unreadCount: unreadCount,
+                hasNewNotification: hasNewNotification,
+                onTap: () => context.push(AppRouter.notifications),
               ),
-              const SizedBox(width: 10), // Controlled spacing between icons
-              // 2. Single Menu Button
-              _buildHeaderAction(
-                icon: Icons.menu_rounded,
-                onTap: onMenuTap,
-              ),
+              const SizedBox(width: 10),
+              // Menu Button
+              _buildHeaderAction(icon: Icons.menu_rounded, onTap: onMenuTap),
             ],
           ),
         ],
@@ -98,11 +104,12 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  // Helper to build consistent, tight action buttons without extra padding
-  Widget _buildHeaderAction({
-    required IconData icon,
+  /// Build notification button with unread count badge
+  Widget _buildNotificationButton({
+    required BuildContext context,
+    required int unreadCount,
+    required bool hasNewNotification,
     required VoidCallback onTap,
-    bool hasBadge = false,
   }) {
     return InkWell(
       onTap: onTap,
@@ -116,23 +123,56 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Icon(icon, color: Colors.black87, size: 22),
-            if (hasBadge)
+            Icon(
+              Icons.notifications_none_outlined,
+              color: Colors.black87,
+              size: 22,
+            ),
+            if (unreadCount > 0)
               Positioned(
                 right: 0,
                 top: 0,
                 child: Container(
-                  height: 8,
-                  width: 8,
+                  height: 16,
+                  width: 16,
                   decoration: BoxDecoration(
-                    color: Colors.red,
+                    color: hasNewNotification ? Colors.red : Colors.orange,
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                  child: Center(
+                    child: Text(
+                      unreadCount > 9 ? '9+' : unreadCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Helper to build consistent action buttons
+  Widget _buildHeaderAction({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.black87, size: 22),
       ),
     );
   }

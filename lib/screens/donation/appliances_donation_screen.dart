@@ -10,10 +10,12 @@ import 'package:geocoding/geocoding.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/default_location.dart';
 import '../../services/storage_service.dart';
+import '../../services/api_service.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/donations_provider.dart';
 import '../../widgets/donation/donation_success_view.dart';
 import '../../widgets/donation/location_picker_field.dart';
-import '../profile/my_donations_screen.dart'; // Added import
+import '../profile/my_donations_screen.dart';
 
 class AppliancesDonationScreen extends ConsumerStatefulWidget {
   const AppliancesDonationScreen({super.key});
@@ -23,7 +25,8 @@ class AppliancesDonationScreen extends ConsumerStatefulWidget {
       _AppliancesDonationScreenState();
 }
 
-class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScreen> {
+class _AppliancesDonationScreenState
+    extends ConsumerState<AppliancesDonationScreen> {
   final _formKey = GlobalKey<FormState>();
   int _currentStep = 1;
   bool _isLoading = false;
@@ -34,9 +37,15 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
   String? _selectedType;
   final TextEditingController _brandController = TextEditingController();
   final TextEditingController _yearController = TextEditingController();
-  final TextEditingController _lengthController = TextEditingController(text: "0");
-  final TextEditingController _widthController = TextEditingController(text: "0");
-  final TextEditingController _heightController = TextEditingController(text: "0");
+  final TextEditingController _lengthController = TextEditingController(
+    text: "0",
+  );
+  final TextEditingController _widthController = TextEditingController(
+    text: "0",
+  );
+  final TextEditingController _heightController = TextEditingController(
+    text: "0",
+  );
 
   String _conditionUI = "Fully Functional";
   bool _isHeavy = false;
@@ -121,10 +130,14 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
 
   Future<void> _handleMapToAddress(LatLng loc) async {
     try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(loc.latitude, loc.longitude);
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        loc.latitude,
+        loc.longitude,
+      );
       if (placemarks.isNotEmpty && mounted) {
         Placemark place = placemarks.first;
-        String newAddress = "${place.name}, ${place.subLocality}, ${place.locality}, ${place.postalCode}";
+        String newAddress =
+            "${place.name}, ${place.subLocality}, ${place.locality}, ${place.postalCode}";
         setState(() {
           _lat = loc.latitude;
           _lng = loc.longitude;
@@ -132,7 +145,9 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
           _suppressAddressSync = true;
           _addressController.text = newAddress;
         });
-        WidgetsBinding.instance.addPostFrameCallback((_) => _suppressAddressSync = false);
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _suppressAddressSync = false,
+        );
       }
     } catch (e) {
       debugPrint("Reverse geocoding error: $e");
@@ -146,7 +161,11 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
   Future<void> _takePhoto() async {
     if (_images.length >= 5) return;
     final ImagePicker picker = ImagePicker();
-    final XFile? photo = await picker.pickImage(source: ImageSource.camera, imageQuality: 70, maxWidth: 1024);
+    final XFile? photo = await picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 70,
+      maxWidth: 1024,
+    );
     if (photo != null) setState(() => _images.add(File(photo.path)));
   }
 
@@ -159,13 +178,16 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
       helpText: "SELECT PURCHASE YEAR",
       initialDatePickerMode: DatePickerMode.year,
     );
-    if (picked != null) setState(() => _yearController.text = picked.year.toString());
+    if (picked != null)
+      setState(() => _yearController.text = picked.year.toString());
   }
 
   void _nextStep() {
     if (_formKey.currentState!.validate()) {
       if (_images.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please add at least one photo")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please add at least one photo")),
+        );
         return;
       }
       setState(() => _currentStep = 2);
@@ -175,6 +197,17 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
   Future<void> _submitDonation() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (_selectedType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Appliance type missing. Please go back and select it.",
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -183,11 +216,15 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
       String tempDonationId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
 
       for (File imageFile in _images.take(3)) {
-        String url = await _storageService.uploadImage(imageFile, tempDonationId);
+        String url = await _storageService.uploadImage(
+          imageFile,
+          tempDonationId,
+        );
         if (url.isNotEmpty) imageUrls.add(url);
       }
 
-      if (imageUrls.isEmpty) throw Exception("Image upload failed. Please try again.");
+      if (imageUrls.isEmpty)
+        throw Exception("Image upload failed. Please try again.");
 
       final Map<String, String> subcategoryMapping = {
         "Fridge": "kitchen",
@@ -197,23 +234,36 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
         "Washing Machine": "electronics",
       };
 
-      final String subcategoryValue = subcategoryMapping[_selectedType] ?? "electronics";
+      final String subcategoryValue =
+          subcategoryMapping[_selectedType] ?? "electronics";
       final String brand = _brandController.text.trim();
       final int? purchaseYear = int.tryParse(_yearController.text.trim());
       final num length = num.tryParse(_lengthController.text.trim()) ?? 0;
       final num width = num.tryParse(_widthController.text.trim()) ?? 0;
       final num height = num.tryParse(_heightController.text.trim()) ?? 0;
 
+      // Ensure title is at least 10 characters long for backend validation
+      String title = brand.isEmpty
+          ? "${_selectedType} for donation"
+          : "${_selectedType} - $brand";
+
+      if (title.length < 10) {
+        title = "$title for donation";
+      }
+
       final now = DateTime.now();
       final payload = {
         "data": {
           "category": "appliances",
           "subcategory": subcategoryValue,
-          "title": brand.isEmpty ? "${_selectedType ?? 'Appliance'} for donation" : "${_selectedType ?? 'Appliance'} - $brand",
-          "description": "Brand: ${brand.isEmpty ? 'N/A' : brand}. Year: ${_yearController.text}. Heavy: $_isHeavy",
+          "title": title,
+          "description":
+              "Brand: ${brand.isEmpty ? 'N/A' : brand}. Year: ${_yearController.text}. Heavy: $_isHeavy",
           "images": imageUrls,
           "condition": "good",
-          "working_condition": _conditionUI == "Fully Functional" ? "fully_functional" : "minor_issues",
+          "working_condition": _conditionUI == "Fully Functional"
+              ? "fully_functional"
+              : "minor_issues",
           "location": {"_latitude": _lat, "_longitude": _lng},
           "address": _selectedAddress,
           "is_heavy": _isHeavy,
@@ -221,42 +271,78 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
           if (purchaseYear != null) "purchase_year": purchaseYear,
           "dimensions": {"length": length, "width": width, "height": height},
           "pickup_window": {
-            "start_date": {"_seconds": now.millisecondsSinceEpoch ~/ 1000, "_nanoseconds": 0},
-            "end_date": {"_seconds": now.add(const Duration(days: 2)).millisecondsSinceEpoch ~/ 1000, "_nanoseconds": 0},
+            "start_date": {
+              "_seconds": now.millisecondsSinceEpoch ~/ 1000,
+              "_nanoseconds": 0,
+            },
+            "end_date": {
+              "_seconds":
+                  now.add(const Duration(days: 2)).millisecondsSinceEpoch ~/
+                  1000,
+              "_nanoseconds": 0,
+            },
           },
         },
       };
 
       final response = await http.post(
         Uri.parse("https://createdonation-u6nq5a5ajq-as.a.run.app"),
-        headers: {"Content-Type": "application/json", if (idToken != null) "Authorization": "Bearer $idToken"},
+        headers: {
+          "Content-Type": "application/json",
+          if (idToken != null) "Authorization": "Bearer $idToken",
+        },
         body: jsonEncode(payload),
       );
 
       if (response.statusCode == 200) {
         if (mounted) _showSuccessDialog();
       } else {
-        throw Exception(jsonDecode(response.body)['error']?['message'] ?? "Failed to post");
+        final errorBody = jsonDecode(response.body);
+        throw Exception(
+          errorBody['error']?['message'] ??
+              errorBody['message'] ??
+              "Failed to post donation",
+        );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.redAccent));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error: ${e.toString().replaceAll('Exception: ', '')}"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
   void _showSuccessDialog() {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => DonationSuccessView(
-      onPostAnother: () {
-        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
-      },
-      onViewDonation: () {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const MyDonationsScreen()),
-          (route) => route.isFirst,
-        );
-      },
-    )));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DonationSuccessView(
+          onPostAnother: () {
+            // Clear cache and trigger refresh before navigating
+            ApiService().clearCache();
+            ref.read(donationRefreshProvider.notifier).refresh();
+            Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/home', (route) => false);
+          },
+          onViewDonation: () {
+            // Clear cache and trigger refresh before navigating
+            ApiService().clearCache();
+            ref.read(donationRefreshProvider.notifier).refresh();
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (context) => const MyDonationsScreen(),
+              ),
+              (route) => route.isFirst,
+            );
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -268,9 +354,14 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => _currentStep == 2 ? setState(() => _currentStep = 1) : Navigator.pop(context),
+          onPressed: () => _currentStep == 2
+              ? setState(() => _currentStep = 1)
+              : Navigator.pop(context),
         ),
-        title: const Text("List Appliance", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: const Text(
+          "List Appliance",
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
       ),
       body: SingleChildScrollView(
         child: Form(
@@ -291,9 +382,25 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
       padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 20),
       child: Row(
         children: [
-          Expanded(child: Container(height: 6, decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(10)))),
+          Expanded(
+            child: Container(
+              height: 6,
+              decoration: BoxDecoration(
+                color: Colors.green,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
           const SizedBox(width: 8),
-          Expanded(child: Container(height: 6, decoration: BoxDecoration(color: _currentStep == 2 ? Colors.green : Colors.grey.shade200, borderRadius: BorderRadius.circular(10)))),
+          Expanded(
+            child: Container(
+              height: 6,
+              decoration: BoxDecoration(
+                color: _currentStep == 2 ? Colors.green : Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -305,43 +412,90 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("What are you donating today?", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const Text(
+            "What are you donating today?",
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 25),
           _label("Category"),
           DropdownButtonFormField<String>(
+            value: _selectedType,
             decoration: _inputDeco("Select Appliance Type"),
-            items: ["Fridge", "AC", "Washing Machine", "TV", "Microwave"].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+            items: [
+              "Fridge",
+              "AC",
+              "Washing Machine",
+              "TV",
+              "Microwave",
+            ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
             onChanged: (v) => setState(() => _selectedType = v),
-            validator: (v) => v == null ? "Please select an appliance type" : null,
+            validator: (v) =>
+                v == null ? "Please select an appliance type" : null,
           ),
           const SizedBox(height: 20),
           _label("Brand (Optional)"),
-          TextFormField(controller: _brandController, decoration: _inputDeco("e.g., LG, Samsung, Godrej")),
+          TextFormField(
+            controller: _brandController,
+            decoration: _inputDeco("e.g., LG, Samsung, Godrej"),
+          ),
           const SizedBox(height: 20),
           _label("Year of Purchase"),
           TextFormField(
             controller: _yearController,
             readOnly: true,
             onTap: () => _selectYear(context),
-            decoration: _inputDeco("Select Year").copyWith(suffixIcon: const Icon(Icons.calendar_today_outlined, size: 20, color: Colors.green)),
+            decoration: _inputDeco("Select Year").copyWith(
+              suffixIcon: const Icon(
+                Icons.calendar_today_outlined,
+                size: 20,
+                color: Colors.green,
+              ),
+            ),
             validator: (v) => (v == null || v.isEmpty) ? "Required" : null,
           ),
           const SizedBox(height: 25),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("Current Condition", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("🌱 Trust matters", style: TextStyle(color: Colors.green.shade700, fontSize: 12)),
+              const Text(
+                "Current Condition",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text(
+                "🌱 Trust matters",
+                style: TextStyle(color: Colors.green.shade700, fontSize: 12),
+              ),
             ],
           ),
           const SizedBox(height: 12),
-          _conditionCard("Fully Functional", "Works perfectly, no repairs needed.", Icons.check_circle, Colors.green),
+          _conditionCard(
+            "Fully Functional",
+            "Works perfectly, no repairs needed.",
+            Icons.check_circle,
+            Colors.green,
+          ),
           const SizedBox(height: 12),
-          _conditionCard("Needs Repair", "Has minor functional or cosmetic issues.", Icons.build, Colors.orange),
+          _conditionCard(
+            "Needs Repair",
+            "Has minor functional or cosmetic issues.",
+            Icons.build,
+            Colors.orange,
+          ),
           const SizedBox(height: 25),
-          const Text("Dimensions (cm)", style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            "Dimensions (cm)",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 12),
-          Row(children: [_dimField(_lengthController, "LENGTH"), const SizedBox(width: 8), _dimField(_widthController, "WIDTH"), const SizedBox(width: 8), _dimField(_heightController, "HEIGHT")]),
+          Row(
+            children: [
+              _dimField(_lengthController, "LENGTH"),
+              const SizedBox(width: 8),
+              _dimField(_widthController, "WIDTH"),
+              const SizedBox(width: 8),
+              _dimField(_heightController, "HEIGHT"),
+            ],
+          ),
           const SizedBox(height: 25),
           _heavyItemToggle(),
           const SizedBox(height: 25),
@@ -361,13 +515,30 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Where is the pickup?", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          const Text("Set your location so nearby receivers can find you.", style: TextStyle(color: Colors.grey)),
+          const Text(
+            "Where is the pickup?",
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const Text(
+            "Set your location so nearby receivers can find you.",
+            style: TextStyle(color: Colors.grey),
+          ),
           const SizedBox(height: 30),
           LocationPickerField(
             selectedLocation: LatLng(_lat, _lng),
             address: _selectedAddress,
-            onLocationSelected: (loc, addr) => _handleMapToAddress(loc),
+            onLocationSelected: (loc, addr) {
+              _suppressAddressSync = true;
+              setState(() {
+                _lat = loc.latitude;
+                _lng = loc.longitude;
+                _selectedAddress = addr;
+                _addressController.text = addr;
+              });
+              WidgetsBinding.instance.addPostFrameCallback(
+                (_) => _suppressAddressSync = false,
+              );
+            },
           ),
           const SizedBox(height: 20),
           _label("Pickup Address"),
@@ -379,7 +550,10 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
             validator: (v) => v!.isEmpty ? "Required" : null,
           ),
           const SizedBox(height: 60),
-          _buildButton(_isLoading ? "Posting..." : "Post Donation", _isLoading ? null : _submitDonation),
+          _buildButton(
+            _isLoading ? "Posting..." : "Post Donation",
+            _isLoading ? null : _submitDonation,
+          ),
         ],
       ),
     );
@@ -391,13 +565,40 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
       onTap: () => setState(() => _conditionUI = title),
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: isSelected ? Colors.green : Colors.grey.shade200, width: isSelected ? 2 : 1)),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? Colors.green : Colors.grey.shade200,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
         child: Row(
           children: [
-            Icon(icon, color: isSelected ? color : Colors.grey.shade400, size: 28),
+            Icon(
+              icon,
+              color: isSelected ? color : Colors.grey.shade400,
+              size: 28,
+            ),
             const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold)), Text(sub, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))])),
-            Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_off, color: isSelected ? Colors.green : Colors.grey.shade300),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    sub,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: isSelected ? Colors.green : Colors.grey.shade300,
+            ),
           ],
         ),
       ),
@@ -405,17 +606,51 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
   }
 
   Widget _dimField(TextEditingController ctrl, String label) {
-    return Expanded(child: Column(children: [TextFormField(controller: ctrl, textAlign: TextAlign.center, decoration: _inputDeco("0"), validator: (v) => (v == null || v.isEmpty) ? "Error" : null), const SizedBox(height: 4), Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey))]));
+    return Expanded(
+      child: Column(
+        children: [
+          TextFormField(
+            controller: ctrl,
+            textAlign: TextAlign.center,
+            decoration: _inputDeco("0"),
+            validator: (v) => (v == null || v.isEmpty) ? "Error" : null,
+          ),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey)),
+        ],
+      ),
+    );
   }
 
   Widget _heavyItemToggle() {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
       child: Row(
         children: [
-          Checkbox(value: _isHeavy, activeColor: Colors.green, onChanged: (v) => setState(() => _isHeavy = v!)),
-          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Heavy item (> 20kg)?", style: TextStyle(fontWeight: FontWeight.bold)), Text("This alerts the receiver to bring help or transport.", style: TextStyle(fontSize: 11, color: Colors.grey))])),
+          Checkbox(
+            value: _isHeavy,
+            activeColor: Colors.green,
+            onChanged: (v) => setState(() => _isHeavy = v!),
+          ),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Heavy item (> 20kg)?",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  "This alerts the receiver to bring help or transport.",
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
           const Icon(Icons.local_shipping, color: Colors.grey),
         ],
       ),
@@ -425,12 +660,35 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
   Widget _buildCameraSection() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.blue.withOpacity(0.05), borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Row(
         children: [
-          IconButton(icon: const Icon(Icons.camera_alt, color: Colors.blue, size: 30), onPressed: _takePhoto),
+          IconButton(
+            icon: const Icon(Icons.camera_alt, color: Colors.blue, size: 30),
+            onPressed: _takePhoto,
+          ),
           const SizedBox(width: 12),
-          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Live photos required", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)), Text("Take up to 5 photos to help people trust your listing.", style: TextStyle(fontSize: 11, color: Colors.blueGrey))])),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Live photos required",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blueAccent,
+                  ),
+                ),
+                Text(
+                  "Take up to 5 photos to help people trust your listing.",
+                  style: TextStyle(fontSize: 11, color: Colors.blueGrey),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -448,8 +706,34 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
           separatorBuilder: (_, __) => const SizedBox(width: 8),
           itemBuilder: (context, index) => Stack(
             children: [
-              ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(_images[index], height: 80, width: 80, fit: BoxFit.cover)),
-              Positioned(right: 0, top: 0, child: InkWell(onTap: () => setState(() => _images.removeAt(index)), child: Container(padding: const EdgeInsets.all(2), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.close, color: Colors.white, size: 14)))),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  _images[index],
+                  height: 80,
+                  width: 80,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              Positioned(
+                right: 0,
+                top: 0,
+                child: InkWell(
+                  onTap: () => setState(() => _images.removeAt(index)),
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -461,9 +745,22 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
     width: double.infinity,
     height: 56,
     child: ElevatedButton(
-      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF66BB6A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)), elevation: 0),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF66BB6A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        elevation: 0,
+      ),
       onPressed: action,
-      child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+      child: _isLoading
+          ? const CircularProgressIndicator(color: Colors.white)
+          : Text(
+              text,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
     ),
   );
 
@@ -472,9 +769,22 @@ class _AppliancesDonationScreenState extends ConsumerState<AppliancesDonationScr
     filled: true,
     fillColor: const Color(0xFFF8F9FA),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide.none,
+    ),
     errorStyle: const TextStyle(color: Colors.redAccent, fontSize: 12),
   );
 
-  Widget _label(String t) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(t, style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w500)));
+  Widget _label(String t) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      t,
+      style: const TextStyle(
+        color: Colors.grey,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+  );
 }

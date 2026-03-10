@@ -9,7 +9,12 @@ import '../../config/default_location.dart';
 import 'profile_setup_screen.dart';
 
 class LocationConfirmationScreen extends ConsumerStatefulWidget {
-  const LocationConfirmationScreen({super.key});
+  final bool navigateToProfileSetup;
+
+  const LocationConfirmationScreen({
+    super.key,
+    this.navigateToProfileSetup = true,
+  });
 
   @override
   ConsumerState<LocationConfirmationScreen> createState() =>
@@ -153,10 +158,14 @@ class _LocationConfirmationScreenState
       }, SetOptions(merge: true));
 
       if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (c) => const ProfileSetupScreen()),
-        );
+        if (widget.navigateToProfileSetup) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (c) => const ProfileSetupScreen()),
+          );
+        } else {
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
       debugPrint("Error saving location: $e");

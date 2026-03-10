@@ -27,7 +27,7 @@ GiveLocally connects local donors with nearby receivers for free goods (furnitur
 - **Mobile app:** Flutter (Android + iOS)
 - **Backend:** Firebase (Cloud Functions, Firestore, Storage, FCM, Auth)
 - **Database:** Cloud Firestore (NoSQL, real-time, geospatial)
-- **Payments:** Razorpay (Authorization & Capture – no fees on successful pickups)
+- **Payments:** Razorpay (Immediate capture – ₹9 reservation fee)
 - **Maps:** Google Maps SDK + Geocoding API (strictly controlled and cached)
 - **SMS/OTP:** Twilio (or equivalent) for phone verification
 - **Hosting (Admin):** Firebase Hosting (admin dashboard)
@@ -35,12 +35,10 @@ GiveLocally connects local donors with nearby receivers for free goods (furnitur
 
 ### 1.4 Business Model & Economics
 
-- **Promise fee:** ₹50 held at the time of reservation (authorized, not captured).
-- **Successful pickup:** Authorization is cancelled (voided), user pays ₹0 gateway fees.
-- **No-show:** After 24 hours, platform attempts to capture the authorization:
-    - If capture succeeds, platform keeps ₹50 (minus Razorpay fees).
-    - If authorization has expired (UPI limits), platform gets ₹0, but trust penalties apply.
-- **Revenue:** Combination of forfeited fees + optional donation/tips in future.
+- **Promise fee:** ₹9 compulsory reservation fee captured immediately upon reservation.
+- **Purpose:** Non-refundable fee to ensure commitment and reduce no-shows.
+- **Revenue:** Platform keeps ₹9 (minus Razorpay fees) from each reservation.
+- **Future:** Optional donation/tips may be added.
 - **Costs:** Primarily SMS, minimal Firebase, low Maps usage due to caching and bounding-box queries.
 
 At sub‑1,000 users, projected monthly costs stay under roughly ₹550 while revenue from forfeits and tips can exceed ₹3,500, making the product profitable from early stages.
@@ -661,10 +659,10 @@ final compressed = await FlutterImageCompress.compressWithFile(
 +--------------------------------------+
 |  <  Reserve this item                |
 +--------------------------------------+
-|  Promise Fee: ₹50                    |
+|  Promise Fee: ₹9                    |
 |  You'll get this back after pickup.  |
 |                                      |
-|  [ PAY ₹50 ]                         |
+|  [ PAY ₹9 ]                         |
 +--------------------------------------+
 ```
 
@@ -727,7 +725,7 @@ final compressed = await FlutterImageCompress.compressWithFile(
 |  Thank you for donating!             |
 |  +100 karma added to your profile.   |
 |                                      |
-|  The ₹50 promise fee has been        |
+|  The ₹9 promise fee has been        |
 |  released back to the receiver.      |
 |                                      |
 |  [ Back to My Donations ]            |
@@ -738,7 +736,7 @@ final compressed = await FlutterImageCompress.compressWithFile(
 
 **What Happens:**
 1. Donation status → `completed`
-2. Payment authorization → `cancelled` (₹50 refunded)
+2. Payment authorization → `cancelled` (₹9 refunded)
 3. Karma awarded: Donor +100, Receiver +10
 4. Both users get notification
 5. Prompt receiver to rate donor
@@ -792,7 +790,7 @@ final compressed = await FlutterImageCompress.compressWithFile(
 
 **What Happens:**
 1. Transaction already auto-forfeited by Cloud Scheduler
-2. ₹50 already forfeited to donor (if capture succeeded)
+2. ₹9 already forfeited to donor (if capture succeeded)
 3. Receiver already penalized (-20 karma)
 4. Donor can relist the item
 
@@ -807,7 +805,7 @@ final compressed = await FlutterImageCompress.compressWithFile(
 |   ⚠️ Pickup code expired             |
 +--------------------------------------+
 |  You did not pick up in time.        |
-|  ₹50 was forfeited.                  |
+|  ₹9 was forfeited.                  |
 |  Karma: -20                          |
 +--------------------------------------+
 ```
@@ -825,11 +823,11 @@ final compressed = await FlutterImageCompress.compressWithFile(
 |  <  Transaction History              |
 +--------------------------------------+
 | ✅ Office Chair - Completed          |
-|    Paid: ₹50  |  Refunded: ₹50       |
+|    Paid: ₹9  |  Refunded: ₹9       |
 |    Receipt: #TX12345                 |
 -------------------------------------------------
 | ❌ Study Desk - Forfeited            |
-|    Paid: ₹50  |  Forfeited: ₹50      |
+|    Paid: ₹9  |  Forfeited: ₹9      |
 +--------------------------------------+
 ```
 
@@ -1247,7 +1245,7 @@ spacing_md: 16.0
     - Sends system messages to all requesters:
         - Accepted receiver: ask to pay promise fee.
         - Others: mark “donor chose someone else”.
-3. Accepted receiver presses “Pay ₹50”:
+3. Accepted receiver presses “Pay ₹9”:
     - Flutter generates an idempotency key.
     - Calls Cloud Function `payments.createOrder(idempotencyKey, donationId)`.
     - Function:
@@ -1433,7 +1431,7 @@ donations/{donationId}
   // Status and ownership
   status: string,            // "active" | "reserved" | "completed" | "expired"
   claimed_by: string,        // receiverId (or null)
-  promise_fee: number,       // Default: 50
+  promise_fee: number, // Default: 9
 
   // SECURITY: No pickup_code here (moved to transactions)
 
@@ -1522,7 +1520,7 @@ transactions/{transactionId}
   receiverId: string,
 
   // Payment metadata
-  promise_fee: number,           // 50
+  promise_fee: number, // 9 (in rupees, captured immediately)
   payment_status: string,        // "authorized" | "cancelled" | "captured" | "expired"
   razorpay_payment_id: string,
   razorpay_order_id: string,
@@ -2038,7 +2036,7 @@ Day 3-4: Real-time chat (Firestore listener)
 Day 5: Donor acceptance flow
 ```
 
-### 5.3 PHASE 3: Payments & Pickup (Weeks 6-8) - Cost: ₹500
+### 5.3 PHASE 3: Payments & Pickup (Weeks 6-8) - Cost: ₹90
 
 #### Week 6: Razorpay Integration ✅
 ```
@@ -2119,7 +2117,7 @@ exports.createOrder = functions.https.onCall(async (data, context) => {
   
   // 3. CREATE RAZORPAY ORDER (AUTH ONLY) ✅
   const order = await razorpay.orders.create({
-    amount: 5000,        // ₹50 * 100 paise
+    amount: 5000,        // ₹9 * 100 paise
     currency: 'INR',
     payment_capture: 0,  // ⚠️ CRITICAL: Auth only
     notes: { donationId, userId: context.auth.uid }
@@ -2407,12 +2405,12 @@ END OF SECTIONS 4-7
 | Cloud Functions | 100k invocations | ₹0 | Free tier: 2M/month |
 | **Razorpay** | | | |
 | Successful pickups | 90% (no fee) | ₹0 | Auth & Capture (void) ✅ |
-| Forfeits | 10% × ₹50 × 100 | ₹50 | 2% fee on captured only |
+| Forfeits | 10% × ₹9 × 100 | ₹9 | 2% fee on captured only |
 | **Google Maps** | | | |
 | Map Display | 10k loads | ₹0 | Free: 28k/month |
 | Geocoding | 100 calls | ₹0 | Cache + confirm-only ✅ |
 | **Twilio (SMS)** | | | |
-| OTP messages | 500 SMS | ₹500 | Rate-limited, 1 per user |
+| OTP messages | 500 SMS | ₹90 | Rate-limited, 1 per user |
 | **TOTAL** | | **₹550** | |
 | **Revenue** | Forfeits + tips | **₹3,500** | |
 | **NET PROFIT** | | **₹2,950** | ✅ Profitable from Month 1 |
@@ -2427,7 +2425,7 @@ Storage: 50 GB = ₹800
 Cloud Functions: 1M invocations = ₹400
 SMS: 5,000 OTPs = ₹5,000
 Maps: 100k loads = ₹0 (still in free tier)
-Geocoding: 1,000 calls = ₹50 (cached strategy)
+Geocoding: 1,000 calls = ₹9 (cached strategy)
 Razorpay fees: ₹1,000
 
 TOTAL COSTS: ₹8,500/month
@@ -2453,7 +2451,7 @@ NET PROFIT: ₹21,500/month ✅
    }
    ```
 
-2. **Geocoding Cache (Saves ₹500/month)**
+2. **Geocoding Cache (Saves ₹90/month)**
     - Never geocode on map load
     - Only when user taps "Confirm Location"
     - Store address in user profile
@@ -2582,7 +2580,7 @@ const nearby = results.filter(doc => {
 
 ✅ Razorpay Integration
   ├─ Order creation succeeds
-  ├─ Checkout opens with correct amount (₹50)
+  ├─ Checkout opens with correct amount (₹9)
   ├─ Test cards work (Razorpay test mode)
   ├─ UPI test handles work
   └─ Payment timeout handled
@@ -2644,7 +2642,7 @@ const nearby = results.filter(doc => {
   └─ Donation returned to "active"
 
 ✅ Edge Cases
-  ├─ Authorization expired before capture
+  ├─ capture the fee
   ├─ Network error during capture
   ├─ Razorpay API downtime
   └─ Partial failure handling
@@ -2800,7 +2798,7 @@ Expected: Graceful handling if auth expired
 │  ├─ Payment success
 │  ├─ Pickup completed
 │  └─ Dispute created
-└─ Budget alerts: ₹500/day max
+└─ Budget alerts: ₹90/day max
 ```
 
 **Dashboard Metrics:**
@@ -2915,7 +2913,7 @@ Success Criteria:
 ```
 1. Optional Tips (Post-Pickup):
    ├─ "Thank the donor" button
-   ├─ Suggested amounts: ₹10, ₹20, ₹50
+   ├─ Suggested amounts: ₹10, ₹20, ₹9
    └─ 100% goes to donor
 
 2. Premium Features (Freemium):

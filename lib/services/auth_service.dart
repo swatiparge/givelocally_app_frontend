@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -5,7 +6,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:givelocally_app/models/user_model.dart';
 import 'package:givelocally_app/config/environment.dart';
 import 'package:flutter/material.dart';
-
 
 // ============================================
 // AUTH SERVICE
@@ -21,7 +21,6 @@ class AuthService extends ChangeNotifier {
 
   // Stream to listen to auth changes
   Stream<User?> get user => _auth.authStateChanges();
-
 
   // ==========================================
   // STATE VARIABLES
@@ -46,11 +45,9 @@ class AuthService extends ChangeNotifier {
 
   bool get isAuthenticated => _firebaseUser != null;
 
-
   // ==========================================
   // CONSTRUCTOR
   // ==========================================
-
 
   AuthService() {
     // Listen to auth state changes
@@ -64,7 +61,6 @@ class AuthService extends ChangeNotifier {
       _auth.useAuthEmulator('127.0.0.1', 9099);
     }
   }
-
 
   // ==========================================
   // AUTH STATE LISTENER
@@ -111,11 +107,8 @@ class AuthService extends ChangeNotifier {
     _cleanError();
     _currentPhone = phoneNumber;
 
-
-    // ✅ ADD DEBUG PRINT
     debugPrint('🔍 sendOTPWithFirebase called with: $phoneNumber');
 
-    // ✅ VALIDATE PHONE NUMBER
     if (phoneNumber.isEmpty || !phoneNumber.startsWith('+')) {
       debugPrint('❌ Invalid phone number format: $phoneNumber');
       _setError('Invalid phone number format');
@@ -123,15 +116,7 @@ class AuthService extends ChangeNotifier {
       return false;
     }
 
-
-    // ⚠️ TEMPORARY: Skip Firebase Auth on iOS Simulator
-    // Firebase Phone Auth has issues with iOS Simulator + Emulator
-    // Go directly to Twilio
-    // if (kDebugMode) {
-    //     debugPrint('🔄 Debug mode: Using Twilio directly');
-    //     return await _sendOTPWithTwilio(phoneNumber);
-    // }
-
+    final Completer<bool> sendCompleter = Completer<bool>();
 
     try {
       await _auth.verifyPhoneNumber(
@@ -139,38 +124,59 @@ class AuthService extends ChangeNotifier {
         timeout: const Duration(seconds: 60),
         verificationCompleted: (PhoneAuthCredential credentials) async {
           debugPrint('🎉 Auto-verification successful');
+          // If auto-verified, we might need to sign in immediately
+          try {
+            await _signInWithCredential(credentials);
+            if (!sendCompleter.isCompleted) sendCompleter.complete(true);
+          } catch (e) {
+            if (!sendCompleter.isCompleted) sendCompleter.complete(false);
+          }
         },
         verificationFailed: (FirebaseAuthException e) {
           debugPrint('❌ Firebase Auth failed: ${e.code} - ${e.message}');
 
-          // FALLBACK FAILED
+          // Check if we should fallback to Twilio
           if (e.code == 'too-many-requests' ||
               e.code == 'quota-exceeded' ||
-              e.code == 'network-request-failed') {
-            debugPrint('🔄 Falling back to Twilio...');
-            _sendOTPWithTwilio(phoneNumber);
+              e.code == 'network-request-failed' ||
+              e.code == 'app-not-authorized' ||
+              e.code == 'operation-not-allowed') {
+            debugPrint('🔄 Falling back to Twilio due to error: ${e.code}');
+            _sendOTPWithTwilio(phoneNumber).then((val) {
+              if (!sendCompleter.isCompleted) sendCompleter.complete(val);
+            });
           } else {
             _setError(e.message ?? 'Verification failed');
             _setLoading(false);
+            if (!sendCompleter.isCompleted) sendCompleter.complete(false);
           }
         },
         // OTP SENT
         codeSent: (String verificationId, int? resendToken) {
-          debugPrint('✅ Firebase OTP sent');
+          debugPrint('✅ Firebase OTP sent. ID: $verificationId');
           _verificationId = verificationId;
           _authMethod = 'firebase';
           _setLoading(false);
+          if (!sendCompleter.isCompleted) sendCompleter.complete(true);
         },
         // ⏱️ AUTO-RETRIEVAL TIMEOUT
         codeAutoRetrievalTimeout: (String verificationId) {
+          debugPrint('⏰ Auto-retrieval timeout');
           _verificationId = verificationId;
-        },);
+          // Don't complete with false here, as the code was still sent
+          if (!sendCompleter.isCompleted) sendCompleter.complete(true);
+        },
+      );
 
-      return true;
+      return await sendCompleter.future.timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          debugPrint('⌛ OTP request timed out, falling back to Twilio');
+          return _sendOTPWithTwilio(phoneNumber);
+        },
+      );
     } catch (e) {
-      debugPrint('❌ Unexpected error: $e');
-
-      // Fallback to Twilio
+      debugPrint('❌ Unexpected error during verifyPhoneNumber: $e');
       return await _sendOTPWithTwilio(phoneNumber);
     }
   }
@@ -181,24 +187,33 @@ class AuthService extends ChangeNotifier {
 
   Future<bool> _sendOTPWithTwilio(String phoneNumber) async {
     debugPrint('📞 Sending OTP via Twilio...');
+    _setLoading(true);
 
     try {
       final callable = _functions.httpsCallable('sendOTP');
-      final response = await callable.call({
-        'phone': phoneNumber,
-      });
+      final response = await callable.call({'phone': phoneNumber});
 
-      if (response.data['success'] == true) {
+      // Flexible check for success (handle both bool and string)
+      final data = response.data;
+      final bool isSuccess =
+          data['success'] == true ||
+          data['status'] == 'success' ||
+          data['success'] == 'true';
+
+      if (isSuccess) {
         debugPrint('✅ Twilio OTP sent successfully');
         _authMethod = 'twilio';
         _setLoading(false);
         return true;
       } else {
-        throw Exception('Failed to send OTP');
+        debugPrint('❌ Twilio response unsuccessful: $data');
+        _setError(data['message'] ?? 'Failed to send OTP');
+        _setLoading(false);
+        return false;
       }
     } catch (e) {
-      debugPrint('❌ Twilio fallback failed: $e');
-      _setError('Failed to send OTP. Please try again.');
+      debugPrint('❌ Twilio fallback failed EXCEPTION: $e');
+      _setError('Failed to send OTP via fallback. Please try again.');
       _setLoading(false);
       return false;
     }
@@ -228,7 +243,6 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-
   // ==========================================
   // VERIFY FIREBASE OTP
   // ==========================================
@@ -243,7 +257,8 @@ class AuthService extends ChangeNotifier {
     try {
       PhoneAuthCredential credential = PhoneAuthProvider.credential(
         verificationId: _verificationId!,
-        smsCode: otp,);
+        smsCode: otp,
+      );
 
       await _signInWithCredential(credential);
       return true;
@@ -274,21 +289,26 @@ class AuthService extends ChangeNotifier {
         'otp': otp,
       });
 
-      if (response.data['success'] == true) {
+      final data = response.data;
+      final bool isSuccess =
+          data['success'] == true ||
+          data['status'] == 'success' ||
+          data['success'] == 'true';
+
+      if (isSuccess) {
         // Sign in with custom token
-
-        String customToken = response.data['token'];
-        await _auth.signInWithCustomToken(customToken);
-
-        debugPrint('✅ Twilio verification successful');
-        debugPrint('✅ User: ${response.data['user']}');
-
-        await _loadUserData();
-
-        _setLoading(false);
-        return true;
+        String? customToken = data['token'];
+        if (customToken != null) {
+          await _auth.signInWithCustomToken(customToken);
+          debugPrint('✅ Twilio verification successful');
+          await _loadUserData();
+          _setLoading(false);
+          return true;
+        } else {
+          throw Exception('Auth token missing in response');
+        }
       } else {
-        throw Exception('Verification failed');
+        throw Exception(data['message'] ?? 'Verification failed');
       }
     } catch (e) {
       debugPrint('❌ Twilio verification failed: $e');
@@ -305,19 +325,28 @@ class AuthService extends ChangeNotifier {
   Future<void> _signInWithCredential(PhoneAuthCredential credential) async {
     try {
       UserCredential userCredential = await _auth.signInWithCredential(
-          credential);
+        credential,
+      );
       debugPrint('✅ Firebase sign-in successful');
 
       // Call Cloud Function to sync with Firestore
-
       String? idToken = await userCredential.user?.getIdToken();
 
-
       if (idToken != null) {
-        final callable = _functions.httpsCallable('verifyFirebaseAuth');
-        await callable.call({'idToken': idToken});
-        debugPrint('✅ User synced to Firestore');
+        try {
+          final callable = _functions.httpsCallable('verifyFirebaseAuth');
+          await callable.call({'idToken': idToken});
+          debugPrint('✅ User synced to Firestore');
+        } catch (e) {
+          debugPrint(
+            '⚠️ Warning: Firestore sync failed but user is authenticated: $e',
+          );
+        }
       }
+
+      // CRITICAL: Wait for user data to load before returning
+      await _loadUserData();
+      debugPrint('✅ User data loaded: ${_userModel?.name ?? "new user"}');
 
       _setLoading(false);
     } catch (e) {
@@ -327,7 +356,8 @@ class AuthService extends ChangeNotifier {
       rethrow;
     }
   }
-// Logic to determine where to send the user after login
+
+  // Logic to determine where to send the user after login
   Future<String> getNextStep() async {
     final user = _auth.currentUser;
     if (user == null) return '/login';
@@ -338,6 +368,15 @@ class AuthService extends ChangeNotifier {
     if (!userDoc.exists) {
       return '/location-setup';
     }
+
+    // Check if name exists (profile completed)
+    final data = userDoc.data();
+    if (data == null ||
+        data['name'] == null ||
+        (data['name'] as String).isEmpty) {
+      return '/location-setup';
+    }
+
     return '/home';
   }
 

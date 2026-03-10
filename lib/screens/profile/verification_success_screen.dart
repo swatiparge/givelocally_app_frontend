@@ -13,7 +13,7 @@ class VerificationSuccessScreen extends StatelessWidget {
     final imageUrl = (donation['images'] as List?)?.first ?? "";
     final timestamp = donation['created_at'];
     String timeStr = "Just now";
-    
+
     if (timestamp != null) {
       // Assuming it might be a Timestamp or DateTime depending on source
       final date = timestamp is DateTime ? timestamp : timestamp.toDate();
@@ -22,7 +22,9 @@ class VerificationSuccessScreen extends StatelessWidget {
 
     void navigateToProfile() {
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const ProfilePage(showBackButton: false)),
+        MaterialPageRoute(
+          builder: (context) => const ProfilePage(showBackButton: false),
+        ),
         (route) => route.isFirst,
       );
     }
@@ -35,7 +37,11 @@ class VerificationSuccessScreen extends StatelessWidget {
         centerTitle: true,
         title: const Text(
           "Verification Success",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
         ),
         actions: [
           IconButton(
@@ -58,39 +64,76 @@ class VerificationSuccessScreen extends StatelessWidget {
                     Container(
                       width: 140,
                       height: 140,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F5E9),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE8F5E9),
                         shape: BoxShape.circle,
                       ),
                     ),
                     const Icon(Icons.check, color: Color(0xFF4CAF50), size: 80),
-                    // Decorative elements (simulating the confetti/stars from image)
-                    Positioned(top: 10, right: 10, child: Icon(Icons.star, color: Colors.amber.shade300, size: 24)),
-                    Positioned(bottom: 20, right: 0, child: Icon(Icons.thumb_up, color: Colors.green.shade200, size: 20)),
-                    Positioned(top: 40, left: 0, child: Icon(Icons.celebration, color: Colors.blue.shade200, size: 24)),
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Icon(
+                        Icons.star,
+                        color: Colors.amber.shade300,
+                        size: 24,
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 20,
+                      right: 0,
+                      child: Icon(
+                        Icons.thumb_up,
+                        color: Colors.green.shade200,
+                        size: 20,
+                      ),
+                    ),
+                    Positioned(
+                      top: 40,
+                      left: 0,
+                      child: Icon(
+                        Icons.celebration,
+                        color: Colors.blue.shade200,
+                        size: 24,
+                      ),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 32),
               const Text(
                 "Pickup Completed!",
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1A1C1E)),
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A1C1E),
+                ),
               ),
               const SizedBox(height: 16),
               const Text(
                 "Thank you for making a difference.\nYour generosity helps build a stronger community.",
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, color: Color(0xFF6B7280), height: 1.5),
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Color(0xFF6B7280),
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 40),
-              
+
               // Karma Card
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                   border: Border.all(color: const Color(0xFFF1F1F1)),
                 ),
                 child: Row(
@@ -103,27 +146,41 @@ class VerificationSuccessScreen extends StatelessWidget {
                         children: [
                           const Text(
                             "+100 Karma",
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Color(0xFF1A1C1E)),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
+                              color: Color(0xFF1A1C1E),
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             "Added to your profile",
-                            style: TextStyle(color: Colors.green.shade700, fontSize: 14),
+                            style: TextStyle(
+                              color: Colors.green.shade700,
+                              fontSize: 14,
+                            ),
                           ),
                         ],
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(color: Color(0xFFE8F5E9), shape: BoxShape.circle),
-                      child: const Icon(Icons.arrow_upward, color: Color(0xFF4CAF50), size: 20),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE8F5E9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_upward,
+                        color: Color(0xFF4CAF50),
+                        size: 20,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
-              
-              // Fee Released Card
+
+              // Fee Card
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -133,20 +190,32 @@ class VerificationSuccessScreen extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.account_balance_wallet, color: Color(0xFF3B82F6), size: 24),
+                    const Icon(
+                      Icons.account_balance_wallet,
+                      color: Color(0xFF3B82F6),
+                      size: 24,
+                    ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            "Fee Released",
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1C1E)),
+                            "Payment Processed",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Color(0xFF1A1C1E),
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            "The ₹50 promise fee has been successfully released back to the receiver.",
-                            style: TextStyle(color: Colors.blue.shade800, fontSize: 13, height: 1.4),
+                            "The promise fee has been successfully processed. Thank you for completing the pickup.",
+                            style: TextStyle(
+                              color: Colors.blue.shade800,
+                              fontSize: 13,
+                              height: 1.4,
+                            ),
                           ),
                         ],
                       ),
@@ -155,15 +224,15 @@ class VerificationSuccessScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Donation Summary
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   "DONATION SUMMARY",
                   style: TextStyle(
-                    fontSize: 12, 
-                    fontWeight: FontWeight.bold, 
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                     color: Colors.grey.shade500,
                     letterSpacing: 0.5,
                   ),
@@ -181,9 +250,22 @@ class VerificationSuccessScreen extends StatelessWidget {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: imageUrl.isNotEmpty 
-                        ? Image.network(imageUrl, width: 60, height: 60, fit: BoxFit.cover)
-                        : Container(width: 60, height: 60, color: Colors.grey.shade100, child: const Icon(Icons.image, color: Colors.grey)),
+                      child: imageUrl.isNotEmpty
+                          ? Image.network(
+                              imageUrl,
+                              width: 60,
+                              height: 60,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              width: 60,
+                              height: 60,
+                              color: Colors.grey.shade100,
+                              child: const Icon(
+                                Icons.image,
+                                color: Colors.grey,
+                              ),
+                            ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -192,25 +274,43 @@ class VerificationSuccessScreen extends StatelessWidget {
                         children: [
                           Text(
                             title,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1C1E)),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Color(0xFF1A1C1E),
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.access_time, size: 14, color: Colors.grey.shade500),
+                              Icon(
+                                Icons.access_time,
+                                size: 14,
+                                color: Colors.grey.shade500,
+                              ),
                               const SizedBox(width: 4),
-                              Text(timeStr, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                              Text(
+                                timeStr,
+                                style: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontSize: 13,
+                                ),
+                              ),
                             ],
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.check_circle, color: Color(0xFF4CAF50), size: 24),
+                    const Icon(
+                      Icons.check_circle,
+                      color: Color(0xFF4CAF50),
+                      size: 24,
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 40),
-              
+
               // Bottom Button
               SizedBox(
                 width: double.infinity,
@@ -218,10 +318,14 @@ class VerificationSuccessScreen extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: navigateToProfile,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7CFF7C), // Design's neon green
+                    backgroundColor: const Color(
+                      0xFF7CFF7C,
+                    ), // Design's neon green
                     foregroundColor: Colors.black,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
                   ),
                   child: const Text(
                     "Back to My Donations",

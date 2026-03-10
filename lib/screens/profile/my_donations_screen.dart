@@ -13,13 +13,25 @@ class MyDonationsScreen extends ConsumerStatefulWidget {
   ConsumerState<MyDonationsScreen> createState() => _MyDonationsScreenState();
 }
 
-class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with SingleTickerProviderStateMixin {
+class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String _selectedCategory = 'All';
   String _selectedDistance = 'All';
 
-  final List<String> _categories = ['All', 'Food', 'Appliances', 'Blood', 'Stationery'];
-  final List<String> _distances = ['All', 'Within 1 km', 'Within 3 km', 'Within 5 km'];
+  final List<String> _categories = [
+    'All',
+    'Food',
+    'Appliances',
+    'Blood',
+    'Stationery',
+  ];
+  final List<String> _distances = [
+    'All',
+    'Within 1 km',
+    'Within 3 km',
+    'Within 5 km',
+  ];
 
   @override
   void initState() {
@@ -27,7 +39,10 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
     _tabController = TabController(length: 2, vsync: this);
   }
 
-  Stream<QuerySnapshot> _getFilteredStream(String uid, {required bool isActive}) {
+  Stream<QuerySnapshot> _getFilteredStream(
+    String uid, {
+    required bool isActive,
+  }) {
     Query query = FirebaseFirestore.instance
         .collection('donations')
         .where('donorId', isEqualTo: uid);
@@ -41,13 +56,18 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
     }
 
     if (_selectedCategory != 'All') {
-      query = query.where('category', isEqualTo: _selectedCategory.toLowerCase());
+      query = query.where(
+        'category',
+        isEqualTo: _selectedCategory.toLowerCase(),
+      );
     }
 
     return query.orderBy('created_at', descending: true).snapshots();
   }
 
-  List<QueryDocumentSnapshot> _filterByDistance(List<QueryDocumentSnapshot> docs) {
+  List<QueryDocumentSnapshot> _filterByDistance(
+    List<QueryDocumentSnapshot> docs,
+  ) {
     double maxDist = 1.0;
     if (_selectedDistance.contains('3')) maxDist = 3.0;
     if (_selectedDistance.contains('5')) maxDist = 5.0;
@@ -71,13 +91,20 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("Filters", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text(
+                    "Filters",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 24),
-                  _buildDropdown(_categories, _selectedCategory, "Category", (val) {
+                  _buildDropdown(_categories, _selectedCategory, "Category", (
+                    val,
+                  ) {
                     modalState(() => _selectedCategory = val!);
                   }),
                   const SizedBox(height: 16),
-                  _buildDropdown(_distances, _selectedDistance, "Distance", (val) {
+                  _buildDropdown(_distances, _selectedDistance, "Distance", (
+                    val,
+                  ) {
                     modalState(() => _selectedDistance = val!);
                   }),
                   const SizedBox(height: 24),
@@ -85,14 +112,23 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(double.infinity, 50),
                       backgroundColor: Colors.green,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     onPressed: () {
                       setState(() {}); // Trigger rebuild on main screen
                       Navigator.pop(context);
                     },
-                    child: const Text("Apply Filters", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                  )
+                    child: const Text(
+                      "Apply Filters",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             );
@@ -183,7 +219,12 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
     );
   }
 
-  Widget _buildDropdown(List<String> items, String selected, String placeholder, ValueChanged<String?> onChanged) {
+  Widget _buildDropdown(
+    List<String> items,
+    String selected,
+    String placeholder,
+    ValueChanged<String?> onChanged,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -196,13 +237,14 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
           hint: Text(placeholder, style: const TextStyle(color: Colors.grey)),
           isExpanded: true,
           icon: const Icon(Icons.keyboard_arrow_down, size: 20),
-          style: const TextStyle(color: Color(0xFF495057), fontWeight: FontWeight.w600, fontSize: 14),
+          style: const TextStyle(
+            color: Color(0xFF495057),
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
           onChanged: onChanged,
           items: items.map((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(value),
-            );
+            return DropdownMenuItem<String>(value: value, child: Text(value));
           }).toList(),
         ),
       ),
@@ -218,10 +260,13 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
           const SizedBox(height: 16),
           Text(
             isActive ? "No active donations" : "No completed donations",
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          const Text("Your donations will appear here.", style: TextStyle(color: Colors.grey)),
+          const Text(
+            "Your donations will appear here.",
+            style: TextStyle(color: Colors.grey),
+          ),
         ],
       ),
     );
@@ -231,8 +276,11 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
     return const Center(
       child: Padding(
         padding: EdgeInsets.all(24.0),
-        child: Text("Unable to load donations.",
-          textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+        child: Text(
+          "Unable to load donations.",
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey),
+        ),
       ),
     );
   }
@@ -242,7 +290,7 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
     final title = item['title'] ?? "Item";
     final status = (item['status'] ?? 'active').toString().toLowerCase();
     final timestamp = item['created_at'] as Timestamp?;
-    
+
     String timeAgo = "Just now";
     if (timestamp != null) {
       final diff = DateTime.now().difference(timestamp.toDate());
@@ -263,7 +311,13 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -271,7 +325,7 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildCategoryIcon(category),
+              _buildCategoryIcon(category, itemData: item),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -298,7 +352,13 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text("Listed $timeAgo", style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
+                    Text(
+                      "Listed $timeAgo",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     if (status == 'reserved' && reservedBy != null)
                       _buildReservedByChip(reservedBy)
@@ -320,33 +380,71 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => DonationDetailScreen(donation: item),
+                        builder: (context) =>
+                            DonationDetailScreen(donation: item),
                       ),
                     );
                   },
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     side: BorderSide(color: Colors.grey.shade200),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                   child: const Text(
                     "View Details",
-                    style: TextStyle(color: Color(0xFF1A1C1E), fontWeight: FontWeight.bold, fontSize: 14),
+                    style: TextStyle(
+                      color: Color(0xFF1A1C1E),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
-              if (status == 'reserved' || (status == 'active' && requestCount > 0)) ...[
+              if (status == 'reserved' ||
+                  (status == 'active' && requestCount > 0)) ...[
                 const SizedBox(width: 12),
                 _buildReviewButton(item, isReserved: status == 'reserved'),
               ],
             ],
-          )
+          ),
         ],
       ),
     );
   }
-  
-  Widget _buildCategoryIcon(String category) {
+
+  Widget _buildCategoryIcon(String category, {Map<String, dynamic>? itemData}) {
+    // Check if images array exists and has valid URLs
+    final images = itemData?['images'] as List<dynamic>?;
+    final imageUrl = (images != null && images.isNotEmpty)
+        ? images[0]?.toString()
+        : itemData?['image']?.toString();
+
+    debugPrint(
+      'MY_DONATIONS: category=$category, images=$images, imageUrl=$imageUrl',
+    );
+
+    if (imageUrl != null &&
+        imageUrl.isNotEmpty &&
+        imageUrl.startsWith('http')) {
+      return Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(20)),
+        clipBehavior: Clip.antiAlias,
+        child: Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildFallbackIcon(category),
+        ),
+      );
+    }
+
+    return _buildFallbackIcon(category);
+  }
+
+  Widget _buildFallbackIcon(String category) {
     IconData icon;
     Color bgColor;
 
@@ -373,19 +471,25 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
     }
 
     return Container(
-      width: 72, height: 72,
+      width: 72,
+      height: 72,
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(20)
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Icon(icon, color: Colors.blue.shade700, size: 36), // Updated to match image blue icons
+      child: Icon(icon, color: Colors.blue.shade700, size: 36),
     );
   }
 
   Widget _buildReservedByChip(Map reservedBy) {
     return Row(
       children: [
-        CircleAvatar(radius: 10, backgroundImage: NetworkImage(reservedBy['photoUrl'] ?? 'https://via.placeholder.com/150')),
+        CircleAvatar(
+          radius: 10,
+          backgroundImage: NetworkImage(
+            reservedBy['photoUrl'] ?? 'https://via.placeholder.com/150',
+          ),
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -402,14 +506,28 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
   Widget _buildRequestCountChip(int count) {
     return Row(
       children: [
-        const Icon(Icons.people_alt_outlined, size: 18, color: Color(0xFF4CAF50)),
+        const Icon(
+          Icons.people_alt_outlined,
+          size: 18,
+          color: Color(0xFF4CAF50),
+        ),
         const SizedBox(width: 8),
-        Text("$count requests", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF4CAF50))),
+        Text(
+          "$count requests",
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF4CAF50),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildReviewButton(Map<String, dynamic> item, {required bool isReserved}) {
+  Widget _buildReviewButton(
+    Map<String, dynamic> item, {
+    required bool isReserved,
+  }) {
     return Expanded(
       child: ElevatedButton(
         onPressed: () async {
@@ -428,11 +546,15 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
           }
         },
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF0F172A), // Dark blue/black as per image
+          backgroundColor: const Color(
+            0xFF0F172A,
+          ), // Dark blue/black as per image
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 14),
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         child: const Text(
           "Review Requests",
@@ -478,7 +600,12 @@ class _MyDonationsScreenState extends ConsumerState<MyDonationsScreen> with Sing
       ),
       child: Text(
         text,
-        style: TextStyle(color: textColor, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+        style: TextStyle(
+          color: textColor,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }

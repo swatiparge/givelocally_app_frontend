@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/donations_provider.dart';
+import '../../providers/chat_provider.dart';
 import '../../widgets/app_header.dart';
 import '../../widgets/main_bottom_nav.dart'; // Footer
 import '../../widgets/home_search_bar.dart';
@@ -14,12 +16,14 @@ import '../../config/default_location.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 // geocoding removed - cost optimization (AGENTS.md 8.3.2)
 import '../../services/geolocation_service.dart';
+import '../../services/api_service.dart';
 
 import '../profile/profile_page.dart';
 import '../profile/my_donations_screen.dart';
 import '../profile/received_items_screen.dart';
 import '../chat/chat_list_screen.dart';
 import '../donation/request_item_screen.dart';
+import '../auth/location_confirmation_screen.dart';
 import 'community_coming_soon_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -34,6 +38,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   int _currentIndex = 0;
   bool _isListView = true;
   String _searchQuery = "";
+  int _refreshKey = 0; // Used to force HomeListContent rebuild
 
   String _currentAddress = kDefaultAddress;
   LatLng _currentPosition = const LatLng(kDefaultLat, kDefaultLng);
@@ -42,6 +47,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   void initState() {
     super.initState();
     _detectAndSetLocation();
+    // Initialize chat provider to start polling for messages
+    // This ensures unread counts and chat list stay synchronized
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(chatListProvider.notifier).loadChats();
+      }
+    });
   }
 
   Future<void> _detectAndSetLocation() async {
@@ -77,7 +89,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
   @override
   void didPopNext() {
     if (!mounted) return;
-    setState(() {});
+    // Clear API cache when returning from donation creation
+    // This ensures newly created donations appear immediately
+    ApiService().clearCache();
+    // Trigger Riverpod refresh for real-time Firestore streams
+    ref.read(donationRefreshProvider.notifier).refresh();
+    setState(() {
+      _refreshKey++; // Force HomeListContent to rebuild and fetch fresh data
+    });
   }
 
   // --- DRAWER HELPERS ---
@@ -178,8 +197,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
           ? null
           : AppHeader(
               location: user?.area ?? _currentAddress,
-              onNotificationTap: () {},
               onMenuTap: () => _scaffoldKey.currentState?.openEndDrawer(),
+              onLocationTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const LocationConfirmationScreen(
+                      navigateToProfileSetup: false,
+                    ),
+                  ),
+                ).then((_) {
+                  _detectAndSetLocation();
+                });
+              },
             ),
       endDrawer: Drawer(
         width: MediaQuery.of(context).size.width * 0.85,
@@ -440,6 +470,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with RouteAware {
               children: [
                 _isListView
                     ? HomeListContent(
+                        key: ValueKey(
+                          _refreshKey,
+                        ), // Force rebuild when refreshKey changes
                         lat: _currentPosition.latitude,
                         lng: _currentPosition.longitude,
                         searchQuery: _searchQuery,

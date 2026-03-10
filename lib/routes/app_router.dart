@@ -11,13 +11,19 @@ import '../screens/donation/stationery_donation_screen.dart';
 import '../screens/home/donation_detail_screen.dart';
 import '../screens/home/reserve_item_screen.dart';
 import '../screens/auth/phone_login_screen.dart';
+import '../screens/auth/otp_screen.dart';
 import '../screens/auth/location_confirmation_screen.dart';
 import '../screens/home/view_all_donations_screen.dart';
+import '../screens/notifications/notifications_screen.dart';
+import '../screens/home/reserve_item_screen.dart';
 
 /// Provider for the GoRouter instance
 final routerProvider = Provider<GoRouter>((ref) {
-  final authService = ref.watch(authServiceProvider);
-  
+  // Use ref.read instead of ref.watch to prevent re-creating the GoRouter instance
+  // when authService notifies listeners (e.g., during loading state changes).
+  // GoRouter uses refreshListenable to handle redirects on its own.
+  final authService = ref.read(authServiceProvider);
+
   return GoRouter(
     debugLogDiagnostics: true,
     initialLocation: AppRouter.splash,
@@ -25,13 +31,14 @@ final routerProvider = Provider<GoRouter>((ref) {
 
     redirect: (context, state) {
       final isLoggedIn = authService.isAuthenticated;
-      final isLoggingIn = state.uri.path == AppRouter.phoneLogin;
-      final isSplash = state.uri.path == AppRouter.splash;
+      final path = state.uri.path;
+      final isAuthRoute = path == AppRouter.phoneLogin || path == AppRouter.otp;
+      final isSplash = path == AppRouter.splash;
 
-      if (!isLoggedIn && !isLoggingIn && !isSplash) {
+      if (!isLoggedIn && !isAuthRoute && !isSplash) {
         return AppRouter.phoneLogin;
       }
-      if (isLoggedIn && (isLoggingIn || isSplash)) {
+      if (isLoggedIn && (isAuthRoute || isSplash)) {
         return AppRouter.home;
       }
       return null;
@@ -47,6 +54,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRouter.phoneLogin,
         name: 'phoneLogin',
         builder: (context, state) => const PhoneLoginScreen(),
+      ),
+      GoRoute(
+        path: AppRouter.otp,
+        name: 'otp',
+        builder: (context, state) {
+          final phoneNumber = state.extra as String? ?? '';
+          return OTPScreen(phoneNumber: phoneNumber);
+        },
       ),
       GoRoute(
         path: AppRouter.locationSetup,
@@ -79,6 +94,32 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const StationeryDonationScreen(),
       ),
       GoRoute(
+        path: AppRouter.viewAllDonations,
+        name: 'viewAllDonations',
+        builder: (context, state) {
+          final args = state.extra as Map<String, dynamic>?;
+          if (args == null) {
+            return const Scaffold(
+              body: Center(
+                child: Text('View all donations: Missing parameters'),
+              ),
+            );
+          }
+          return ViewAllDonationsScreen(
+            title: args['title'] ?? 'Donations',
+            category: args['category'] ?? '',
+            categories: args['categories'] as List<String>?,
+            lat: args['lat'] as double,
+            lng: args['lng'] as double,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRouter.notifications,
+        name: 'notifications',
+        builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
         path: AppRouter.donationDetail,
         name: 'donationDetail',
         builder: (context, state) {
@@ -102,25 +143,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             );
           }
           return ReserveItemScreen(donation: donation);
-        },
-      ),
-      GoRoute(
-        path: AppRouter.viewAllDonations,
-        name: 'viewAllDonations',
-        builder: (context, state) {
-          final args = state.extra as Map<String, dynamic>?;
-          if (args == null) {
-            return const Scaffold(
-              body: Center(child: Text('View all donations: Missing parameters')),
-            );
-          }
-          return ViewAllDonationsScreen(
-            title: args['title'] ?? 'Donations',
-            category: args['category'] ?? '',
-            categories: args['categories'] as List<String>?,
-            lat: args['lat'] as double,
-            lng: args['lng'] as double,
-          );
         },
       ),
     ],
@@ -155,6 +177,7 @@ class AppRouter {
   static const String splash = '/';
   static const String home = '/home';
   static const String phoneLogin = '/phone-login';
+  static const String otp = '/otp';
   static const String locationSetup = '/location-setup';
   static const String postFood = '/post-food';
   static const String postAppliances = '/post-appliances';
@@ -163,6 +186,7 @@ class AppRouter {
   static const String donationDetail = '/donation-detail';
   static const String reserveItem = '/reserve-item';
   static const String viewAllDonations = '/view-all-donations';
+  static const String notifications = '/notifications';
 
   AppRouter._();
 }
@@ -174,6 +198,10 @@ extension GoRouterContext on BuildContext {
   void goToPostAppliances() => go(AppRouter.postAppliances);
   void goToPostBlood() => go(AppRouter.postBlood);
   void goToPostStationery() => go(AppRouter.postStationery);
+
+  void goToOTP(String phoneNumber) {
+    push(AppRouter.otp, extra: phoneNumber);
+  }
 
   void goToDonationDetail(Map<String, dynamic> donation) {
     push(AppRouter.donationDetail, extra: donation);
@@ -201,4 +229,6 @@ extension GoRouterContext on BuildContext {
       },
     );
   }
+
+  void goToNotifications() => push(AppRouter.notifications);
 }

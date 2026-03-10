@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/ListView/urgent_blood_request_card.dart';
+import '../../routes/app_router.dart';
 
 class ViewAllDonationsScreen extends ConsumerStatefulWidget {
   final String title;
@@ -27,6 +28,7 @@ class ViewAllDonationsScreen extends ConsumerStatefulWidget {
 class _ViewAllDonationsScreenState extends ConsumerState<ViewAllDonationsScreen> {
   late Future<List<dynamic>> _fetchFuture;
   final ApiService _apiService = ApiService();
+  double _currentRadius = 50.0; // Default to 50km to see everything initially
 
   @override
   void initState() {
@@ -44,14 +46,51 @@ class _ViewAllDonationsScreenState extends ConsumerState<ViewAllDonationsScreen>
             lat: widget.lat,
             lng: widget.lng,
             categories: widget.categories!,
-            radiusKm: 50,
+            radiusKm: _currentRadius,
+            limit: 50,
           )
         : _apiService.fetchNearbyDonations(
             lat: widget.lat,
             lng: widget.lng,
             category: categoryOrNull,
-            radiusKm: 50,
+            radiusKm: _currentRadius,
+            limit: 50,
           );
+  }
+
+  List<dynamic> _applySorting(List<dynamic> items) {
+    List<dynamic> sortedItems = List.from(items);
+    // STICKY SORT: Always sort by latest first
+    sortedItems.sort((a, b) {
+      final dateA = _extractDateTime(a);
+      final dateB = _extractDateTime(b);
+      return dateB.compareTo(dateA); // Newest first
+    });
+    return sortedItems;
+  }
+
+  DateTime _extractDateTime(dynamic item) {
+    // Aggressive date extraction from multiple possible fields
+    final dateData = item['createdAt'] ?? 
+                     item['created_at'] ?? 
+                     item['timestamp'] ?? 
+                     (item['pickup_window'] != null ? item['pickup_window']['start_date'] : null) ??
+                     item['expiry_date']; // Fallback to expiry if creation is missing
+    
+    if (dateData == null) return DateTime(2000);
+
+    if (dateData is Map) {
+      final seconds = dateData['_seconds'] ?? dateData['seconds'] ?? 0;
+      return DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+    }
+    if (dateData is int) {
+      // Handle both seconds and milliseconds
+      if (dateData < 10000000000) return DateTime.fromMillisecondsSinceEpoch(dateData * 1000);
+      return DateTime.fromMillisecondsSinceEpoch(dateData);
+    }
+    if (dateData is String) return DateTime.tryParse(dateData) ?? DateTime(2000);
+    
+    return DateTime(2000);
   }
 
   @override
@@ -74,56 +113,68 @@ class _ViewAllDonationsScreenState extends ConsumerState<ViewAllDonationsScreen>
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: Colors.black),
-            onPressed: () {},
-          ),
-        ],
       ),
-      body: Column(
-        children: [
-          _buildFilterBar(),
-          Expanded(
-            child: FutureBuilder<List<dynamic>>(
-              future: _fetchFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      body: RefreshIndicator(
+        onRefresh: () async {
+          setState(() {
+            _initFetch();
+          });
+          await _fetchFuture;
+        },
+        child: Column(
+          children: [
+            _buildFilterBar(),
+            Expanded(
+              child: FutureBuilder<List<dynamic>>(
+                future: _fetchFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                final items = snapshot.data ?? [];
+                  if (snapshot.hasError) {
+                    return Center(child: Text("Error: ${snapshot.error}"));
+                  }
 
-                if (items.isEmpty) {
-                  return const Center(child: Text("No items found."));
-                }
+                  final rawItems = snapshot.data ?? [];
+                  final items = _applySorting(rawItems);
 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    final isPostedByMe = currentUserId != null && 
-                        (item['donorId'] == currentUserId || item['userId'] == currentUserId);
+                  if (items.isEmpty) {
+                    return ListView(
+                      children: [
+                        SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+                        const Center(child: Text("No items found in this range.")),
+                        const Center(child: Text("Try increasing the distance filter.", style: TextStyle(color: Colors.grey, fontSize: 12))),
+                      ],
+                    );
+                  }
 
-                    if (widget.category == "blood" || item['category'] == "blood") {
-                      return InkWell(
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          '/donation-detail',
-                          arguments: item,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        child: UrgentBloodRequestCard(donation: item),
-                      );
-                    }
-                    return _buildVerticalListCard(context, item, isPostedByMe);
-                  },
-                );
-              },
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      final isPostedByMe = currentUserId != null && 
+                          (item['donorId'] == currentUserId || item['userId'] == currentUserId);
+
+                      if (widget.category == "blood" || item['category'] == "blood") {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: InkWell(
+                            onTap: () => context.goToDonationDetail(item as Map<String, dynamic>),
+                            borderRadius: BorderRadius.circular(16),
+                            child: UrgentBloodRequestCard(donation: item),
+                          ),
+                        );
+                      }
+                      return _buildVerticalListCard(context, item, isPostedByMe);
+                    },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -131,39 +182,75 @@ class _ViewAllDonationsScreenState extends ConsumerState<ViewAllDonationsScreen>
   Widget _buildFilterBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: Colors.white,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 2, offset: const Offset(0, 2))
+        ]
+      ),
       child: Row(
         children: [
-          _filterChip("Distance"),
+          Icon(Icons.tune, size: 18, color: Colors.green.shade700),
+          const SizedBox(width: 8),
+          const Text("Distance Filter:", style: TextStyle(fontSize: 14, color: Color(0xFF1A1C1E), fontWeight: FontWeight.bold)),
+          const SizedBox(width: 12),
+          _distanceDropdown(),
           const Spacer(),
         ],
       ),
     );
   }
 
-  Widget _filterChip(String label) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    decoration: BoxDecoration(
-      border: Border.all(color: Colors.grey.shade300),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Row(children: [Text(label), const Icon(Icons.arrow_drop_down)]),
-  );
+  Widget _distanceDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<double>(
+          value: _currentRadius,
+          isDense: true,
+          icon: Icon(Icons.keyboard_arrow_down, color: Colors.green.shade700),
+          style: TextStyle(color: Colors.green.shade900, fontWeight: FontWeight.bold, fontSize: 13),
+          items: [1.0, 3.0, 5.0, 10.0, 50.0].map((radius) {
+            return DropdownMenuItem(
+              value: radius,
+              child: Text("${radius.toInt()} km"),
+            );
+          }).toList(),
+          onChanged: (val) {
+            if (val != null) {
+              setState(() {
+                _currentRadius = val;
+                _initFetch();
+              });
+            }
+          },
+        ),
+      ),
+    );
+  }
 
   Widget _buildVerticalListCard(BuildContext context, dynamic item, bool isPostedByMe) {
     final images = item['images'] as List? ?? [];
     final String imageUrl = images.isNotEmpty ? images[0] : "";
     
-    final String userName = item['username'] ?? item['userName'] ?? item['donorName'] ?? item['name'] ?? "Donor";
+    final String donorName = item['donor_name'] ?? item['donorName'] ?? item['userName'] ?? item['username'] ?? item['name'] ?? "Donor";
     final String userImage = item['userImage'] ?? item['donorImage'] ?? item['profilePicture'] ?? "";
     final String userRating = (item['userRating'] ?? item['donorRating'] ?? item['averageRating'] ?? "4.5").toString();
-    final String expiry = item['expiry'] ?? "4h";
-    final String distance = item['distance'] != null ? "${item['distance']}km away" : "0.3km away";
-    final String itemCategory = item['category'] ?? "General";
+    
+    // Format distance nicely
+    String distanceStr = "Nearby";
+    if (item['distance'] != null) {
+      final d = item['distance'];
+      distanceStr = d < 1 ? "${(d * 1000).toInt()}m away" : "${d.toStringAsFixed(1)}km away";
+    }
 
     return InkWell(
-      onTap: () =>
-          Navigator.pushNamed(context, '/donation-detail', arguments: item),
+      onTap: () => context.goToDonationDetail(item as Map<String, dynamic>),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
@@ -193,7 +280,7 @@ class _ViewAllDonationsScreenState extends ConsumerState<ViewAllDonationsScreen>
                     fit: BoxFit.cover,
                     errorBuilder: (c, e, s) => Container(
                       height: 200,
-                      color: const Color(0xFFFFF3E0),
+                      color: const Color(0xFFF1F8E9),
                       child: const Icon(Icons.image, color: Colors.grey),
                     ),
                   ),
@@ -206,6 +293,7 @@ class _ViewAllDonationsScreenState extends ConsumerState<ViewAllDonationsScreen>
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)]
                     ),
                     child: const Text(
                       "Free",
@@ -228,7 +316,7 @@ class _ViewAllDonationsScreenState extends ConsumerState<ViewAllDonationsScreen>
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        "Posted by you",
+                        "My Post",
                         style: TextStyle(
                           color: Colors.blue.shade700,
                           fontWeight: FontWeight.bold,
@@ -237,32 +325,6 @@ class _ViewAllDonationsScreenState extends ConsumerState<ViewAllDonationsScreen>
                       ),
                     ),
                   ),
-                Positioned(
-                  bottom: 12,
-                  right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.access_time, color: Colors.white, size: 14),
-                        const SizedBox(width: 4),
-                        Text(
-                          "Exp. $expiry",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               ],
             ),
             Padding(
@@ -270,17 +332,34 @@ class _ViewAllDonationsScreenState extends ConsumerState<ViewAllDonationsScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    item['title'] ?? "Item",
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF212121),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item['title'] ?? "Item",
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF212121),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        distanceStr,
+                        style: TextStyle(
+                          color: Colors.green.shade700,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "$itemCategory • $distance",
+                    "${item['category'] ?? 'General'}",
                     style: const TextStyle(
                       color: Color(0xFF757575),
                       fontSize: 14,
@@ -303,7 +382,7 @@ class _ViewAllDonationsScreenState extends ConsumerState<ViewAllDonationsScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              isPostedByMe ? "You" : userName,
+                              isPostedByMe ? "You" : donorName,
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
@@ -328,11 +407,7 @@ class _ViewAllDonationsScreenState extends ConsumerState<ViewAllDonationsScreen>
                       ),
                       if (!isPostedByMe)
                         ElevatedButton(
-                          onPressed: () => Navigator.pushNamed(
-                            context,
-                            '/donation-detail',
-                            arguments: item,
-                          ),
+                          onPressed: () => context.goToDonationDetail(item as Map<String, dynamic>),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFF1F8E9),
                             foregroundColor: const Color(0xFF4CAF50),

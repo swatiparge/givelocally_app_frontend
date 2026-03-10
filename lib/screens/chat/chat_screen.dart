@@ -1,20 +1,21 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../../services/api_service.dart';
-import '../../providers/auth_provider.dart';
+import '../../providers/providers.dart';
+import '../../providers/chat_provider.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String donationId;
   final String itemName;
   final String? itemImage;
+  final String? requesterId;
 
   const ChatScreen({
     super.key,
     required this.donationId,
     required this.itemName,
     this.itemImage,
+    this.requesterId,
   });
 
   @override
@@ -24,163 +25,54 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final ApiService _apiService = ApiService();
-  
-  List<Map<String, dynamic>> _messages = [];
-  bool _isLoading = true;
-  bool _isLoadingMore = false;
-  bool _hasMore = true;
-  String? _lastTimestamp;
-  Timer? _refreshTimer;
+  bool _isSending = false;
+  bool _initialized = false;
+  late ChatParams _chatParams;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchInitialMessages();
-    });
-    
-    // Polling for new messages every 5 seconds
-    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _pollNewMessages());
-    
     _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      _initializeChatParams();
+    }
+  }
+
+  void _initializeChatParams() {
+    final currentUserId = ref.read(userIdProvider);
+
+    debugPrint('CHAT_SCREEN: === INITIALIZE ===');
+    debugPrint('CHAT_SCREEN: donationId = ${widget.donationId}');
+    debugPrint('CHAT_SCREEN: requesterId from widget = ${widget.requesterId}');
+    debugPrint('CHAT_SCREEN: currentUserId = $currentUserId');
+
+    _chatParams = ChatParams(
+      donationId: widget.donationId,
+      requesterId: widget.requesterId ?? currentUserId,
+    );
+
+    debugPrint('CHAT_SCREEN: Final requesterId = ${_chatParams.requesterId}');
   }
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
-    
-    // In a reversed ListView, the top of the visible area (oldest messages) is at maxScrollExtent.
-    // When pixels approach maxScrollExtent, we load older messages.
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      if (!_isLoadingMore && _hasMore && _lastTimestamp != null) {
-        _loadMoreMessages();
-      }
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      ref.read(chatMessagesProvider(_chatParams).notifier).loadMoreMessages();
     }
   }
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
-  }
-
-  Future<void> _fetchInitialMessages() async {
-    if (!mounted) return;
-    setState(() => _isLoading = true);
-    try {
-      final result = await _apiService.getChatMessages(widget.donationId);
-      if (mounted) {
-        final List<dynamic> raw = result['messages'] ?? [];
-        setState(() {
-          _messages = _safeParseMessages(raw);
-          _lastTimestamp = result['lastTimestamp']?.toString();
-          _hasMore = result['hasMore'] == true;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint("ChatScreen Initial Fetch Error: $e");
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  List<Map<String, dynamic>> _safeParseMessages(List? raw) {
-    if (raw == null) return [];
-    final List<Map<String, dynamic>> parsed = [];
-    for (var item in raw) {
-      if (item is Map) {
-        parsed.add(Map<String, dynamic>.from(item));
-      }
-    }
-    // Sort newest first for the reversed ListView
-    parsed.sort((a, b) => _toDateTime(b['timestamp']).compareTo(_toDateTime(a['timestamp'])));
-    return parsed;
-  }
-
-  Future<void> _loadMoreMessages() async {
-    if (_lastTimestamp == null || !mounted || _isLoadingMore) return;
-    
-    setState(() => _isLoadingMore = true);
-    try {
-      final result = await _apiService.getChatMessages(
-        widget.donationId, 
-        lastTimestamp: _lastTimestamp
-      );
-      if (mounted) {
-        final List<dynamic> rawMore = result['messages'] ?? [];
-        final moreMessages = _safeParseMessages(rawMore);
-        setState(() {
-          if (moreMessages.isNotEmpty) {
-            _messages = _mergeAndSortMessages(_messages, moreMessages);
-            _lastTimestamp = result['lastTimestamp']?.toString();
-            _hasMore = result['hasMore'] == true;
-          } else {
-            _hasMore = false;
-          }
-          _isLoadingMore = false;
-        });
-      }
-    } catch (e) {
-      debugPrint("ChatScreen Load More Error: $e");
-      if (mounted) setState(() => _isLoadingMore = false);
-    }
-  }
-
-  Future<void> _pollNewMessages() async {
-    if (!mounted || _isLoading || _isLoadingMore) return;
-    try {
-      final result = await _apiService.getChatMessages(widget.donationId);
-      final List<dynamic> rawNew = result['messages'] ?? [];
-      
-      if (mounted && rawNew.isNotEmpty) {
-        final newMessages = _safeParseMessages(rawNew);
-        setState(() {
-          _messages = _mergeAndSortMessages(_messages, newMessages);
-        });
-      }
-    } catch (_) {}
-  }
-
-  List<Map<String, dynamic>> _mergeAndSortMessages(List<Map<String, dynamic>> current, List<Map<String, dynamic>> newlyFetched) {
-    final Map<String, Map<String, dynamic>> msgMap = {};
-    
-    void addToMap(Map<String, dynamic> m) {
-      // Use 'id' if available, otherwise fallback to a content-based hash
-      final key = m['id']?.toString() ?? 
-                 "${m['senderId']}_${m['timestamp']}_${m['message'].toString().hashCode}";
-      msgMap[key] = m;
-    }
-
-    current.forEach(addToMap);
-    newlyFetched.forEach(addToMap);
-
-    final merged = msgMap.values.toList();
-    
-    // Sort descending: newest first (index 0)
-    // In a reversed ListView, index 0 is at the bottom (WhatsApp style)
-    merged.sort((a, b) {
-      final timeA = _toDateTime(a['timestamp']);
-      final timeB = _toDateTime(b['timestamp']);
-      return timeB.compareTo(timeA);
-    });
-    
-    return merged;
-  }
-
-  DateTime _toDateTime(dynamic ts) {
-    if (ts == null) return DateTime.now(); 
-    if (ts is int) {
-      // Handle seconds vs milliseconds
-      return DateTime.fromMillisecondsSinceEpoch(ts < 10000000000 ? ts * 1000 : ts);
-    }
-    if (ts is String) return DateTime.tryParse(ts) ?? DateTime.now();
-    if (ts is Map) {
-      if (ts.containsKey('_seconds')) return DateTime.fromMillisecondsSinceEpoch((ts['_seconds'] as int) * 1000);
-      if (ts.containsKey('seconds')) return DateTime.fromMillisecondsSinceEpoch((ts['seconds'] as int) * 1000);
-    }
-    return DateTime.now();
   }
 
   Future<void> _handleSend() async {
@@ -188,27 +80,49 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (text.isEmpty) return;
 
     _textController.clear();
-    
-    // Optimistically add message to UI if needed, but here we wait for poll or immediate fetch
-    final success = await _apiService.sendMessage(widget.donationId, text);
-    if (success) {
-      _pollNewMessages();
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to send message')),
-        );
-      }
+    setState(() => _isSending = true);
+
+    await ref
+        .read(chatMessagesProvider(_chatParams).notifier)
+        .sendMessage(text);
+
+    if (mounted) {
+      setState(() => _isSending = false);
     }
   }
 
   String _formatTime(dynamic timestamp) {
-    final dt = _toDateTime(timestamp);
+    if (timestamp == null) return '';
+
+    DateTime dt;
+    if (timestamp is int) {
+      dt = DateTime.fromMillisecondsSinceEpoch(
+        timestamp < 10000000000 ? timestamp * 1000 : timestamp,
+      );
+    } else if (timestamp is String) {
+      dt = DateTime.tryParse(timestamp) ?? DateTime.now();
+    } else if (timestamp is Map) {
+      if (timestamp.containsKey('_seconds')) {
+        dt = DateTime.fromMillisecondsSinceEpoch(
+          (timestamp['_seconds'] as int) * 1000,
+        );
+      } else if (timestamp.containsKey('seconds')) {
+        dt = DateTime.fromMillisecondsSinceEpoch(
+          (timestamp['seconds'] as int) * 1000,
+        );
+      } else {
+        dt = DateTime.now();
+      }
+    } else {
+      dt = DateTime.now();
+    }
+
     return DateFormat('h:mm a').format(dt);
   }
 
   @override
   Widget build(BuildContext context) {
+    final messagesAsync = ref.watch(chatMessagesProvider(_chatParams));
     final currentUserId = ref.watch(userIdProvider);
 
     return Scaffold(
@@ -217,33 +131,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: _isLoading && _messages.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : _messages.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.builder(
-                        controller: _scrollController,
-                        reverse: true, // index 0 is at the bottom
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
-                        itemCount: _messages.length + (_isLoadingMore ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (index == _messages.length) {
-                            return const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            );
-                          }
-                          
-                          final message = _messages[index];
-                          // Robust identity check
-                          final isMe = message['isMe'] == true || 
-                                       (currentUserId != null && message['senderId'] == currentUserId);
-                          
-                          return _buildMessageBubble(message, isMe);
-                        },
-                      ),
+            child: messagesAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, _) => _buildErrorState(err),
+              data: (messages) => messages.isEmpty
+                  ? _buildEmptyState()
+                  : _buildMessageList(messages, currentUserId),
+            ),
           ),
           _buildMessageComposer(),
         ],
@@ -251,19 +145,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildErrorState(Object error) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey.withOpacity(0.3)),
-          const SizedBox(height: 16),
-          const Text(
-            "No messages yet.\nStart a conversation!",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey, fontSize: 16),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text(
+              'Unable to load messages',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error.toString(),
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                ref
+                    .read(chatMessagesProvider(_chatParams).notifier)
+                    .loadMessages();
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -285,7 +196,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               children: [
                 Text(
                   widget.itemName,
-                  style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
@@ -303,6 +218,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Widget _buildAppBarImage() {
     final imageUrl = widget.itemImage;
+    debugPrint('CHAT_SCREEN: itemImage = $imageUrl');
     return Container(
       width: 40,
       height: 40,
@@ -311,13 +227,64 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         color: Colors.grey.shade100,
       ),
       clipBehavior: Clip.antiAlias,
-      child: (imageUrl != null && imageUrl.isNotEmpty)
+      child:
+          (imageUrl != null &&
+              imageUrl.isNotEmpty &&
+              imageUrl.startsWith('http'))
           ? Image.network(
               imageUrl,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 20),
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.inventory_2_outlined,
+                color: Colors.grey,
+                size: 20,
+              ),
             )
-          : const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 20),
+          : const Icon(
+              Icons.inventory_2_outlined,
+              color: Colors.grey,
+              size: 20,
+            ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.chat_bubble_outline,
+            size: 64,
+            color: Colors.grey.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            "No messages yet.\nStart a conversation!",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageList(
+    List<Map<String, dynamic>> messages,
+    String? currentUserId,
+  ) {
+    return ListView.builder(
+      controller: _scrollController,
+      reverse: true,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+      itemCount: messages.length,
+      itemBuilder: (context, index) {
+        final message = messages[index];
+        final isMe =
+            message['isMe'] == true ||
+            (currentUserId != null && message['senderId'] == currentUserId);
+        return _buildMessageBubble(message, isMe);
+      },
     );
   }
 
@@ -362,7 +329,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 const SizedBox(width: 5),
                 const Icon(Icons.done_all, color: Colors.white, size: 16),
               ],
-            )
+            ),
           ],
         ),
       ),
@@ -370,19 +337,44 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildReceivedMessage(Map<String, dynamic> message) {
+    final imageUrl = widget.itemImage;
     return Align(
       alignment: Alignment.centerLeft,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          const CircleAvatar(
-            radius: 12,
-            backgroundColor: Color(0xFFE5E7EB),
-            child: Icon(Icons.person, size: 16, color: Colors.grey),
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFE5E7EB),
+              image:
+                  (imageUrl != null &&
+                      imageUrl.isNotEmpty &&
+                      imageUrl.startsWith('http'))
+                  ? DecorationImage(
+                      image: NetworkImage(imageUrl),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+            child:
+                (imageUrl == null ||
+                    imageUrl.isEmpty ||
+                    !imageUrl.startsWith('http'))
+                ? const Icon(
+                    Icons.inventory_2_outlined,
+                    size: 14,
+                    color: Colors.grey,
+                  )
+                : null,
           ),
           const SizedBox(width: 8),
           Container(
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.65),
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.65,
+            ),
             margin: const EdgeInsets.only(top: 4, bottom: 4, right: 80),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
@@ -393,7 +385,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 bottomLeft: Radius.circular(4),
                 bottomRight: Radius.circular(20),
               ),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -431,8 +429,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   filled: true,
                   fillColor: const Color(0xFFF5F5F5),
                   hintText: "Type a message...",
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                 ),
                 onSubmitted: (_) => _handleSend(),
               ),
@@ -441,10 +445,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             CircleAvatar(
               backgroundColor: const Color(0xFF38A84A),
               radius: 24,
-              child: IconButton(
-                icon: const Icon(Icons.send, color: Colors.white, size: 22),
-                onPressed: _handleSend,
-              ),
+              child: _isSending
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : IconButton(
+                      icon: const Icon(
+                        Icons.send,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      onPressed: _isSending ? null : _handleSend,
+                    ),
             ),
           ],
         ),

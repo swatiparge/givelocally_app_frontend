@@ -1,0 +1,5 @@
+# Firebase App Check Debug Token
+# Add your debug token here after running the app once
+# Then register this token in Firebase Console > Project Settings > App Check
+
+# YOUR_DEBUG_TOKEN_HERE
