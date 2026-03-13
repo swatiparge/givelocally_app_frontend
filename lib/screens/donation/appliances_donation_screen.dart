@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../config/default_location.dart';
 import '../../services/storage_service.dart';
 import '../../services/api_service.dart';
@@ -50,6 +52,44 @@ class _AppliancesDonationScreenState
   String _conditionUI = "Fully Functional";
   bool _isHeavy = false;
   final List<File> _images = [];
+
+  // Grouped options for the dropdown
+  final List<Map<String, dynamic>> _groupedOptions = [
+    {'isHeader': true, 'label': '--- ELECTRONICS ---'},
+    {'isHeader': false, 'label': 'Refrigerator'},
+    {'isHeader': false, 'label': 'Washing Machine'},
+    {'isHeader': false, 'label': 'Microwave Oven'},
+    {'isHeader': false, 'label': 'TV'},
+    {'isHeader': false, 'label': 'Air Conditioner (Window/Split)'},
+    {'isHeader': false, 'label': 'Water Purifier (RO/UV)'},
+    {'isHeader': false, 'label': 'Geyser / Water Heater'},
+    {'isHeader': false, 'label': 'Mixer / Grinder'},
+    {'isHeader': false, 'label': 'Electric Kettle'},
+    {'isHeader': false, 'label': 'Toaster'},
+    {'isHeader': false, 'label': 'Rice Cooker'},
+    {'isHeader': false, 'label': 'Pressure Cooker (Electric)'},
+    {'isHeader': false, 'label': 'Iron (Clothes)'},
+    {'isHeader': false, 'label': 'Ceiling Fan'},
+    {'isHeader': false, 'label': 'Table Fan'},
+    {'isHeader': false, 'label': 'Hair Dryer'},
+    {'isHeader': true, 'label': '--- FURNITURE ---'},
+    {'isHeader': false, 'label': 'Beds (Single/Double)'},
+    {'isHeader': false, 'label': 'Mattresses (Hygienic condition only)'},
+    {'isHeader': false, 'label': 'Study Tables'},
+    {'isHeader': false, 'label': 'Office Tables'},
+    {'isHeader': false, 'label': 'Chairs (Plastic/Wooden/Office)'},
+    {'isHeader': false, 'label': 'Sofa Set'},
+    {'isHeader': false, 'label': 'Wardrobe'},
+    {'isHeader': false, 'label': 'Cupboards'},
+    {'isHeader': false, 'label': 'Bookshelves'},
+    {'isHeader': false, 'label': 'Dining Table Set'},
+    {'isHeader': false, 'label': 'TV Unit'},
+    {'isHeader': false, 'label': 'Shoe Rack'},
+    {'isHeader': true, 'label': '--- OTHERS ---'},
+    {'isHeader': false, 'label': 'Gas Stove'},
+    {'isHeader': false, 'label': 'Chimney (Kitchen Hood)'},
+    {'isHeader': false, 'label': 'Other'},
+  ];
 
   // Step 2: Location
   String _selectedAddress = kDefaultAddress;
@@ -199,11 +239,7 @@ class _AppliancesDonationScreenState
 
     if (_selectedType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Appliance type missing. Please go back and select it.",
-          ),
-        ),
+        const SnackBar(content: Text("Type missing. Please select one.")),
       );
       return;
     }
@@ -212,6 +248,10 @@ class _AppliancesDonationScreenState
     try {
       final user = FirebaseAuth.instance.currentUser;
       final idToken = await user?.getIdToken();
+
+      // Get App Check token for manual HTTP request
+      final appCheckToken = await FirebaseAppCheck.instance.getToken();
+
       List<String> imageUrls = [];
       String tempDonationId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
 
@@ -227,15 +267,41 @@ class _AppliancesDonationScreenState
         throw Exception("Image upload failed. Please try again.");
 
       final Map<String, String> subcategoryMapping = {
-        "Fridge": "kitchen",
-        "Microwave": "kitchen",
-        "AC": "electronics",
+        "Refrigerator": "kitchen",
+        "Washing Machine": "laundry",
+        "Microwave Oven": "kitchen",
         "TV": "electronics",
-        "Washing Machine": "electronics",
+        "Air Conditioner (Window/Split)": "climatisation",
+        "Water Purifier (RO/UV)": "kitchen",
+        "Geyser / Water Heater": "bathroom",
+        "Mixer / Grinder": "kitchen",
+        "Electric Kettle": "kitchen",
+        "Toaster": "kitchen",
+        "Rice Cooker": "kitchen",
+        "Pressure Cooker (Electric)": "kitchen",
+        "Iron (Clothes)": "laundry",
+        "Ceiling Fan": "climatisation",
+        "Table Fan": "climatisation",
+        "Hair Dryer": "personal_care",
+        "Beds (Single/Double)": "furniture",
+        "Mattresses (Hygienic condition only)": "furniture",
+        "Study Tables": "furniture",
+        "Office Tables": "furniture",
+        "Chairs (Plastic/Wooden/Office)": "furniture",
+        "Sofa Set": "furniture",
+        "Wardrobe": "furniture",
+        "Cupboards": "furniture",
+        "Bookshelves": "furniture",
+        "Dining Table Set": "furniture",
+        "TV Unit": "furniture",
+        "Shoe Rack": "furniture",
+        "Gas Stove": "kitchen",
+        "Chimney (Kitchen Hood)": "kitchen",
+        "Other": "others",
       };
 
       final String subcategoryValue =
-          subcategoryMapping[_selectedType] ?? "electronics";
+          subcategoryMapping[_selectedType] ?? "others";
       final String brand = _brandController.text.trim();
       final int? purchaseYear = int.tryParse(_yearController.text.trim());
       final num length = num.tryParse(_lengthController.text.trim()) ?? 0;
@@ -289,6 +355,7 @@ class _AppliancesDonationScreenState
         Uri.parse("https://createdonation-u6nq5a5ajq-as.a.run.app"),
         headers: {
           "Content-Type": "application/json",
+          "X-Firebase-AppCheck": appCheckToken ?? "",
           if (idToken != null) "Authorization": "Bearer $idToken",
         },
         body: jsonEncode(payload),
@@ -325,9 +392,8 @@ class _AppliancesDonationScreenState
             // Clear cache and trigger refresh before navigating
             ApiService().clearCache();
             ref.read(donationRefreshProvider.notifier).refresh();
-            Navigator.of(
-              context,
-            ).pushNamedAndRemoveUntil('/home', (route) => false);
+            // Back to home using GoRouter
+            context.go('/home');
           },
           onViewDonation: () {
             // Clear cache and trigger refresh before navigating
@@ -359,7 +425,7 @@ class _AppliancesDonationScreenState
               : Navigator.pop(context),
         ),
         title: const Text(
-          "List Appliance",
+          "List Appliance / Item",
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
       ),
@@ -420,17 +486,27 @@ class _AppliancesDonationScreenState
           _label("Category"),
           DropdownButtonFormField<String>(
             value: _selectedType,
-            decoration: _inputDeco("Select Appliance Type"),
-            items: [
-              "Fridge",
-              "AC",
-              "Washing Machine",
-              "TV",
-              "Microwave",
-            ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-            onChanged: (v) => setState(() => _selectedType = v),
-            validator: (v) =>
-                v == null ? "Please select an appliance type" : null,
+            isExpanded: true,
+            decoration: _inputDeco("Select Type"),
+            items: _groupedOptions.map((opt) {
+              final isHeader = opt['isHeader'] as bool;
+              return DropdownMenuItem<String>(
+                value: isHeader ? null : opt['label'] as String,
+                enabled: !isHeader,
+                child: Text(
+                  opt['label'] as String,
+                  style: TextStyle(
+                    fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
+                    color: isHeader ? Colors.green.shade700 : Colors.black87,
+                    fontSize: isHeader ? 12 : 15,
+                  ),
+                ),
+              );
+            }).toList(),
+            onChanged: (v) {
+              if (v != null) setState(() => _selectedType = v);
+            },
+            validator: (v) => v == null ? "Please select an option" : null,
           ),
           const SizedBox(height: 20),
           _label("Brand (Optional)"),

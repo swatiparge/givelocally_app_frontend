@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:givelocally_app/models/user_model.dart';
 import 'package:givelocally_app/config/environment.dart';
 import 'package:flutter/material.dart';
+import 'fcm_service.dart';
 
 // ============================================
 // AUTH SERVICE
@@ -70,6 +71,8 @@ class AuthService extends ChangeNotifier {
     _firebaseUser = user;
     if (user != null) {
       _loadUserData();
+      // Ensure FCM token is synced whenever auth state becomes valid
+      FcmService().initialize();
     } else {
       _userModel = null;
     }

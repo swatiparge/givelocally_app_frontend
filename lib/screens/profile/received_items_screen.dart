@@ -621,10 +621,12 @@ class _ReceivedItemsScreenState extends ConsumerState<ReceivedItemsScreen>
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
+                      // The data already contains transaction fields from the query
+                      // Just ensure we have the donationId for reference
                       final dataWithId = {
                         ...data,
-                        'id': transactionId,
-                        'transactionId': transactionId,
+                        'donationId': transactionId,
+                        // Keep any existing transaction fields that might already be in data
                       };
                       debugPrint("VIEW_PICKUP_CODE: Button pressed");
                       debugPrint(

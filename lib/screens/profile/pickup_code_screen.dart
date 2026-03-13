@@ -14,8 +14,22 @@ final transactionDataProvider =
       transactionId,
     ) async {
       if (transactionId.isEmpty) return null;
-      final api = ref.watch(_apiServiceProvider);
-      return await api.getTransaction(transactionId);
+      try {
+        // Directly fetch from Firestore
+        final doc = await FirebaseFirestore.instance
+            .collection('transactions')
+            .doc(transactionId)
+            .get();
+        if (doc.exists) {
+          final data = doc.data()!;
+          // Convert Timestamps to Maps for consistency
+          return data.map((key, value) => MapEntry(key, value));
+        }
+        return null;
+      } catch (e) {
+        debugPrint('Error fetching transaction: $e');
+        return null;
+      }
     });
 
 final transactionByDonationProvider =
@@ -24,8 +38,35 @@ final transactionByDonationProvider =
       donationId,
     ) async {
       if (donationId.isEmpty) return null;
-      final api = ref.watch(_apiServiceProvider);
-      return await api.getTransactionByDonation(donationId);
+      try {
+        debugPrint('=== TRANSACTION QUERY DEBUG ===');
+        debugPrint('Querying transaction for donationId: $donationId');
+
+        // Try to query by donationId
+        var snapshot = await FirebaseFirestore.instance
+            .collection('transactions')
+            .where('donationId', isEqualTo: donationId)
+            .limit(10)
+            .get();
+
+        debugPrint('Query returned ${snapshot.docs.length} docs');
+
+        if (snapshot.docs.isEmpty) {
+          debugPrint('No transaction found via query');
+          return null;
+        }
+
+        final data = snapshot.docs.first.data();
+        debugPrint('Found transaction:');
+        debugPrint('  - pickup_code_expires: ${data['pickup_code_expires']}');
+        debugPrint('  - expires_at: ${data['expires_at']}');
+        return data.map((key, value) => MapEntry(key, value));
+      } catch (e) {
+        debugPrint('Error fetching transaction: $e');
+        debugPrint('This is expected if Firestore rules block the query');
+        debugPrint('Returning null - will use initial data instead');
+        return null;
+      }
     });
 
 final donorDetailsProvider =
@@ -50,6 +91,11 @@ class PickupCodeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    debugPrint("=== PICKUP_CODE_SCREEN BUILD ===");
+    debugPrint("Initial data keys: ${initialData.keys.join(', ')}");
+    debugPrint("Initial data donationId: ${initialData['donationId']}");
+    debugPrint("Initial data id: ${initialData['id']}");
+
     final transactionId = _extractTransactionId(initialData);
     final donationId =
         initialData['donationId']?.toString() ??
@@ -60,9 +106,9 @@ class PickupCodeScreen extends ConsumerWidget {
         initialData['donor_id']?.toString() ??
         '';
 
-    debugPrint("PICKUP_CODE_SCREEN: transactionId = $transactionId");
-    debugPrint("PICKUP_CODE_SCREEN: donationId = $donationId");
-    debugPrint("PICKUP_CODE_SCREEN: donorId = $donorId");
+    debugPrint("PICKUP_CODE_SCREEN: Extracted transactionId = $transactionId");
+    debugPrint("PICKUP_CODE_SCREEN: Extracted donationId = $donationId");
+    debugPrint("PICKUP_CODE_SCREEN: Extracted donorId = $donorId");
 
     // Fetch transaction data from Cloud Function
     final transactionAsync = transactionId.isNotEmpty
@@ -115,11 +161,36 @@ class PickupCodeScreen extends ConsumerWidget {
   }
 
   String _extractTransactionId(Map<String, dynamic> data) {
-    return data['id']?.toString() ??
+    // Priority 1: Look for explicit transaction ID
+    final explicitId =
         data['transactionId']?.toString() ??
         data['transaction_id']?.toString() ??
-        data['documentId']?.toString() ??
-        '';
+        data['documentId']?.toString();
+
+    if (explicitId != null && explicitId.isNotEmpty) {
+      debugPrint("Found explicit transaction ID: $explicitId");
+      return explicitId;
+    }
+
+    // Priority 2: If we have donation data, we need to QUERY for the transaction
+    final donationId =
+        data['donationId']?.toString() ?? data['donation_id']?.toString();
+
+    if (donationId != null && donationId.isNotEmpty) {
+      debugPrint("Using donationId to query transaction: $donationId");
+      return ''; // Will use donationId query instead
+    }
+
+    // Priority 3: Check if 'id' is actually a transaction ID pattern
+    // Transaction IDs in Firebase are usually auto-generated with underscores
+    final id = data['id']?.toString() ?? '';
+    if (id.contains('_') || id.length > 20) {
+      debugPrint("ID appears to be a transaction/document ID: $id");
+      return id;
+    }
+
+    debugPrint("No valid transaction ID found");
+    return '';
   }
 
   PreferredSizeWidget _buildAppBar(
@@ -338,34 +409,69 @@ class _PickupCodeContent extends StatelessWidget {
   }
 
   String _getTimeRemaining(Map<String, dynamic> data) {
-    final expiresAt =
-        data['pickup_code_expires'] ??
-        data['expires_at'] ??
-        data['verification_code_expires'] ??
-        data['authorization_expires'] ??
-        data['pickup_otp_expires'];
+    debugPrint('PICKUP_CODE _getTimeRemaining called');
+    debugPrint(' - All keys: ${data.keys.join(", ")}');
+    debugPrint(' - pickup_code_expires: ${data['pickup_code_expires']}');
+    debugPrint(' - expires_at: ${data['expires_at']}');
+    debugPrint(' - authorization_expires: ${data['authorization_expires']}');
 
-    if (expiresAt == null) return "23h 59m";
+    // CRITICAL: ONLY use pickup_code_expires from transactions collection (24h)
+    // DO NOT fall back to expires_at (30 days from donations) or other fields
+    final expiresAt = data['pickup_code_expires'];
 
+    if (expiresAt == null) {
+      debugPrint(
+        ' - pickup_code_expires not found, checking authorization_expires (24h)',
+      );
+      // Secondary fallback: authorization_expires (also 24h from transactions)
+      final authExpires = data['authorization_expires'];
+      if (authExpires != null) {
+        debugPrint(' - Using authorization_expires fallback');
+        return _calculateTimeRemaining(authExpires);
+      }
+      debugPrint(' - No valid expiry field found, returning default');
+      return "23h 59m";
+    }
+
+    return _calculateTimeRemaining(expiresAt);
+  }
+
+  String _calculateTimeRemaining(dynamic expiresAt) {
     DateTime? expiry;
     if (expiresAt is Timestamp) {
       expiry = expiresAt.toDate();
+      debugPrint(' - Expiry from Timestamp: $expiry');
     } else if (expiresAt is String) {
       expiry = DateTime.tryParse(expiresAt);
+      debugPrint(' - Expiry from String: $expiry');
     } else if (expiresAt is Map && expiresAt['_seconds'] != null) {
       expiry = DateTime.fromMillisecondsSinceEpoch(
         expiresAt['_seconds'] * 1000,
       );
+      debugPrint(' - Expiry from Map: $expiry');
+    } else {
+      debugPrint(' - Unknown expiry format: ${expiresAt.runtimeType}');
     }
 
-    if (expiry == null) return "23h 59m";
+    if (expiry == null) {
+      debugPrint(' - Could not parse expiry, returning default');
+      return "23h 59m";
+    }
 
     final diff = expiry.difference(DateTime.now());
-    if (diff.isNegative) return "Expired";
+    debugPrint(' - Time difference: $diff');
+    debugPrint(' - Hours: ${diff.inHours}, Minutes: ${diff.inMinutes % 60}');
+
+    if (diff.isNegative) {
+      debugPrint(' - Time is in the past, showing Expired');
+      return "Expired";
+    }
 
     final hours = diff.inHours;
     final minutes = diff.inMinutes % 60;
-    return "${hours}h ${minutes}m";
+    final result = "${hours}h ${minutes}m";
+    debugPrint(' - Final result: $result');
+    return result;
   }
 
   void _copyCode(BuildContext context, String? code) {

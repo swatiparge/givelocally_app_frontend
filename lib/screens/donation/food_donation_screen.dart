@@ -6,9 +6,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../config/default_location.dart';
 import '../../services/storage_service.dart';
 import '../../services/api_service.dart';
@@ -195,6 +197,9 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
       final user = FirebaseAuth.instance.currentUser;
       final idToken = await user?.getIdToken();
 
+      // Get App Check token for manual HTTP request
+      final appCheckToken = await FirebaseAppCheck.instance.getToken();
+
       final List<String> imageUrls = [];
       final String tempDonationId =
           'temp_${DateTime.now().millisecondsSinceEpoch}';
@@ -242,7 +247,11 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
               "_nanoseconds": 0,
             },
             "end_date": {
-              "_seconds": _pickupStartTime.add(const Duration(hours: 2)).millisecondsSinceEpoch ~/ 1000,
+              "_seconds":
+                  _pickupStartTime
+                      .add(const Duration(hours: 2))
+                      .millisecondsSinceEpoch ~/
+                  1000,
               "_nanoseconds": 0,
             },
           },
@@ -254,6 +263,7 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
         Uri.parse("https://createdonation-u6nq5a5ajq-as.a.run.app"),
         headers: {
           "Content-Type": "application/json",
+          "X-Firebase-AppCheck": appCheckToken ?? "",
           if (idToken != null) "Authorization": "Bearer $idToken",
         },
         body: jsonEncode(payload),
@@ -292,9 +302,8 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
             // Clear cache and trigger refresh before navigating
             ApiService().clearCache();
             ref.read(donationRefreshProvider.notifier).refresh();
-            Navigator.of(
-              context,
-            ).pushNamedAndRemoveUntil('/home', (route) => false);
+            // Use GoRouter for navigation
+            context.go('/home');
           },
           onViewDonation: () {
             // Clear cache and trigger refresh before navigating
@@ -681,8 +690,10 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
   }) => InkWell(
     onTap: () async {
       final now = DateTime.now();
-      final firstDate = isExpiry ? now : now.subtract(const Duration(minutes: 5));
-      
+      final firstDate = isExpiry
+          ? now
+          : now.subtract(const Duration(minutes: 5));
+
       final d = await showDatePicker(
         context: context,
         initialDate: currentValue.isBefore(firstDate) ? now : currentValue,
@@ -713,7 +724,9 @@ class _FoodDonationScreenState extends ConsumerState<FoodDonationScreen> {
         color: const Color(0xFFF8F9FA),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: (isExpiry && _expiryError != null) ? Colors.redAccent : Colors.grey.shade300,
+          color: (isExpiry && _expiryError != null)
+              ? Colors.redAccent
+              : Colors.grey.shade300,
         ),
       ),
       child: Row(

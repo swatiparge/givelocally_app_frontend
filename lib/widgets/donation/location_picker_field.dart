@@ -1,10 +1,10 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_maps_plugin/widgets/location_picker.dart';
 import '../../config/default_location.dart';
-import '../../services/geolocation_service.dart';
 
+/// A field widget that displays a map preview and opens a full location picker.
+/// Used in donation forms for selecting pickup location.
 class LocationPickerField extends StatefulWidget {
   final LatLng? selectedLocation;
   final String address;
@@ -51,18 +51,20 @@ class _LocationPickerFieldState extends State<LocationPickerField> {
   }
 
   Future<void> _openFullPicker(BuildContext context) async {
-    final result = await Navigator.push(
+    final result = await Navigator.push<LocationResult>(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            FullMapPickerScreen(initialLocation: widget.selectedLocation),
+        builder: (context) => _DonationLocationPickerScreen(
+          initialLocation: widget.selectedLocation,
+        ),
       ),
     );
 
-    if (!context.mounted) return;
-    if (result != null && result is Map<String, dynamic>) {
-      widget.onLocationSelected(result['location'], result['address']);
-    }
+    if (!context.mounted || result == null) return;
+    widget.onLocationSelected(
+      result.location,
+      result.address ?? 'Selected Location',
+    );
   }
 
   @override
@@ -128,7 +130,6 @@ class _LocationPickerFieldState extends State<LocationPickerField> {
                     ],
                   ),
                 ),
-              // Overlay to ensure the whole container is clickable
               Container(color: Colors.transparent),
             ],
           ),
@@ -138,206 +139,22 @@ class _LocationPickerFieldState extends State<LocationPickerField> {
   }
 }
 
-// WF-14: Full Screen Map Picker
-class FullMapPickerScreen extends StatefulWidget {
+/// Wrapper screen that uses the shared LocationPicker with donation config.
+class _DonationLocationPickerScreen extends StatelessWidget {
   final LatLng? initialLocation;
-  const FullMapPickerScreen({super.key, this.initialLocation});
 
-  @override
-  State<FullMapPickerScreen> createState() => _FullMapPickerScreenState();
-}
-
-class _FullMapPickerScreenState extends State<FullMapPickerScreen> {
-  GoogleMapController? _controller;
-  late LatLng _currentCenter;
-  Timer? _idleDebounce;
-  bool _isResolvingAddress = false;
-  String? _address;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentCenter =
-        widget.initialLocation ?? const LatLng(kDefaultLat, kDefaultLng);
-
-    // If no initial location is provided, attempt to use device location.
-    if (widget.initialLocation == null) {
-      _useCurrentLocation();
-    } else {
-      _resolveAddress();
-    }
-  }
-
-  @override
-  void dispose() {
-    _idleDebounce?.cancel();
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _useCurrentLocation() async {
-    final pos = await GeolocationService.getCurrentPosition();
-    if (pos == null || !mounted) return;
-    final loc = LatLng(pos.latitude, pos.longitude);
-    setState(() => _currentCenter = loc);
-    await _controller?.animateCamera(
-      CameraUpdate.newCameraPosition(CameraPosition(target: loc, zoom: 16)),
-    );
-    await _resolveAddress();
-  }
-
-  void _onCameraIdle() {
-    _idleDebounce?.cancel();
-    _idleDebounce = Timer(const Duration(milliseconds: 450), _resolveAddress);
-  }
-
-  Future<void> _resolveAddress() async {
-    if (!mounted) return;
-    setState(() => _isResolvingAddress = true);
-
-    try {
-      final placemarks = await placemarkFromCoordinates(
-        _currentCenter.latitude,
-        _currentCenter.longitude,
-      );
-      if (!mounted) return;
-
-      if (placemarks.isNotEmpty) {
-        final p = placemarks.first;
-        final parts = <String>[
-          if ((p.name ?? '').trim().isNotEmpty) p.name!.trim(),
-          if ((p.subLocality ?? '').trim().isNotEmpty) p.subLocality!.trim(),
-          if ((p.locality ?? '').trim().isNotEmpty) p.locality!.trim(),
-          if ((p.administrativeArea ?? '').trim().isNotEmpty)
-            p.administrativeArea!.trim(),
-        ];
-        _address = parts.join(', ');
-      }
-    } catch (_) {
-      // ignore; keep address null
-    } finally {
-      if (mounted) setState(() => _isResolvingAddress = false);
-    }
-  }
+  const _DonationLocationPickerScreen({this.initialLocation});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          "Select Pickup Point",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: const BackButton(color: Colors.black),
-      ),
-      body: Stack(
-        children: [
-          GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: _currentCenter,
-              zoom: 16,
-            ),
-            onMapCreated: (c) => _controller = c,
-            onCameraMove: (pos) => _currentCenter = pos.target,
-            onCameraIdle: _onCameraIdle,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-          ),
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: 35),
-              child: Icon(Icons.location_on, color: Colors.red, size: 45),
-            ),
-          ),
-          Positioned(
-            top: 20,
-            left: 16,
-            right: 16,
-            child: Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_isResolvingAddress)
-                      const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          SizedBox(width: 8),
-                          Text('Getting address...'),
-                        ],
-                      )
-                    else
-                      Text(
-                        _address ?? 'Move the map to set pickup point',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Lat: ${_currentCenter.latitude.toStringAsFixed(4)}, '
-                      'Lng: ${_currentCenter.longitude.toStringAsFixed(4)}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 30,
-            left: 20,
-            right: 20,
-            child: Column(
-              children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FloatingActionButton.small(
-                    heroTag: 'useCurrentLocation',
-                    onPressed: _useCurrentLocation,
-                    backgroundColor: Colors.white,
-                    child: const Icon(Icons.my_location, color: Colors.black87),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    minimumSize: const Size(double.infinity, 56),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context, {
-                      'location': _currentCenter,
-                      'address': _address ?? 'Selected Location',
-                    });
-                  },
-                  child: const Text(
-                    "Confirm Location",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      body: LocationPicker(
+        initialPosition:
+            initialLocation ?? const LatLng(kDefaultLat, kDefaultLng),
+        config: LocationPickerConfig.donationPickup,
+        onLocationSelected: (result) {
+          Navigator.pop(context, result);
+        },
       ),
     );
   }
