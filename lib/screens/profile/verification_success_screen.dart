@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'profile_page.dart';
+import 'package:go_router/go_router.dart';
+import 'my_donations_screen.dart';
 
 class VerificationSuccessScreen extends StatelessWidget {
   final Map<String, dynamic> donation;
@@ -20,12 +21,16 @@ class VerificationSuccessScreen extends StatelessWidget {
       timeStr = DateFormat('EEEE, h:mm a').format(date);
     }
 
-    void navigateToProfile() {
+    void navigateToMyDonations() {
+      // In a GoRouter app, we should use pushReplacement if we want to go to a specific screen
+      // or simply use Navigator to push the MyDonations screen if it's not a top-level route.
+      // Since MyDonations might not be in the GoRouter paths yet, we'll use standard Navigator
+      // but ensure we clear the success screen from the stack.
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (context) => const ProfilePage(showBackButton: false),
+          builder: (context) => const MyDonationsScreen(),
         ),
-        (route) => route.isFirst,
+        (route) => route.isFirst, // Keeps the Home screen as the base
       );
     }
 
@@ -46,7 +51,7 @@ class VerificationSuccessScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.close, color: Colors.black),
-            onPressed: navigateToProfile,
+            onPressed: navigateToMyDonations,
           ),
         ],
       ),
@@ -129,7 +134,7 @@ class VerificationSuccessScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
+                      color: Colors.black.withOpacity(0.03),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -316,7 +321,7 @@ class VerificationSuccessScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: navigateToProfile,
+                  onPressed: navigateToMyDonations,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(
                       0xFF7CFF7C,

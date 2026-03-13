@@ -15,7 +15,11 @@ import '../screens/auth/otp_screen.dart';
 import '../screens/auth/location_confirmation_screen.dart';
 import '../screens/home/view_all_donations_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
-import '../screens/home/reserve_item_screen.dart';
+import '../screens/chat/chat_screen.dart';
+import '../services/fcm_service.dart';
+
+// Export for convenience
+export '../services/fcm_service.dart';
 
 /// Provider for the GoRouter instance
 final routerProvider = Provider<GoRouter>((ref) {
@@ -27,6 +31,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     debugLogDiagnostics: true,
     initialLocation: AppRouter.splash,
+    navigatorKey: FcmService.navigatorKey,
     refreshListenable: authService,
 
     redirect: (context, state) {
@@ -120,6 +125,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const NotificationsScreen(),
       ),
       GoRoute(
+        path: AppRouter.chat,
+        name: 'chat',
+        builder: (context, state) {
+          final args = state.extra as Map<String, dynamic>?;
+          if (args == null) {
+            return const Scaffold(
+              body: Center(child: Text('Chat: Missing parameters')),
+            );
+          }
+          return ChatScreen(
+            donationId: args['donationId'] ?? '',
+            itemName: args['itemName'] ?? 'Item',
+            itemImage: args['itemImage'],
+            requesterId: args['requesterId'],
+          );
+        },
+      ),
+      GoRoute(
         path: AppRouter.donationDetail,
         name: 'donationDetail',
         builder: (context, state) {
@@ -187,6 +210,7 @@ class AppRouter {
   static const String reserveItem = '/reserve-item';
   static const String viewAllDonations = '/view-all-donations';
   static const String notifications = '/notifications';
+  static const String chat = '/chat/:donationId';
 
   AppRouter._();
 }
@@ -231,4 +255,21 @@ extension GoRouterContext on BuildContext {
   }
 
   void goToNotifications() => push(AppRouter.notifications);
+
+  void goToChat({
+    required String donationId,
+    required String itemName,
+    String? itemImage,
+    String? requesterId,
+  }) {
+    push(
+      AppRouter.chat.replaceFirst(':donationId', donationId),
+      extra: {
+        'donationId': donationId,
+        'itemName': itemName,
+        'itemImage': itemImage,
+        'requesterId': requesterId,
+      },
+    );
+  }
 }

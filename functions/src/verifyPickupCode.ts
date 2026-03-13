@@ -5,7 +5,7 @@
 /* eslint-disable require-jsdoc */
 /* eslint-disable no-case-declarations */
 
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v2";
 import {db} from "./config/firebase";
 import {FieldValue} from "firebase-admin/firestore";
 import Razorpay from "razorpay";

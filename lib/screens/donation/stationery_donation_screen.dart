@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../config/default_location.dart';
 import '../../services/storage_service.dart';
@@ -145,6 +147,9 @@ class _StationeryDonationScreenState
       final user = FirebaseAuth.instance.currentUser;
       final idToken = await user?.getIdToken();
 
+      // Get App Check token for manual HTTP request
+      final appCheckToken = await FirebaseAppCheck.instance.getToken();
+
       final List<String> imageUrls = [];
       final String tempDonationId =
           'temp_${DateTime.now().millisecondsSinceEpoch}';
@@ -202,6 +207,7 @@ class _StationeryDonationScreenState
         Uri.parse("https://createdonation-u6nq5a5ajq-as.a.run.app"),
         headers: {
           "Content-Type": "application/json",
+          "X-Firebase-AppCheck": appCheckToken ?? "",
           if (idToken != null) "Authorization": "Bearer $idToken",
         },
         body: jsonEncode(payload),
@@ -229,9 +235,8 @@ class _StationeryDonationScreenState
       MaterialPageRoute(
         builder: (context) => DonationSuccessView(
           onPostAnother: () {
-            Navigator.of(
-              context,
-            ).pushNamedAndRemoveUntil('/home', (route) => false);
+            // Use GoRouter for navigation
+            context.go('/home');
           },
           onViewDonation: () {
             Navigator.of(context).pushAndRemoveUntil(

@@ -11,6 +11,12 @@ class RazorpayService {
   final Razorpay _razorpay;
   final BuildContext context;
 
+  // Store donation data for transaction creation
+  String _lastOrderId = '';
+  String _lastDonationId = '';
+  String _lastDonorId = '';
+  String _currentUserId = '';
+
   RazorpayService(this.context) : _razorpay = Razorpay() {
     _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
@@ -21,11 +27,47 @@ class RazorpayService {
     _razorpay.clear();
   }
 
-  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
     debugPrint("Payment Success: ${response.paymentId}");
+
+    // Create transaction document with correct 24h expiry
+    try {
+      final transactionRef = await FirebaseFirestore.instance
+          .collection('transactions')
+          .add({
+            'razorpay_payment_id': response.paymentId,
+            'razorpay_order_id': _lastOrderId,
+            'payment_status': 'authorized',
+            'promise_fee': 9,
+            'pickup_code': _generatePickupCode(),
+            'pickup_code_expires': Timestamp.fromDate(
+              DateTime.now().add(Duration(hours: 24)),
+            ),
+            'authorization_expires': Timestamp.fromDate(
+              DateTime.now().add(Duration(hours: 24)),
+            ),
+            'pickup_code_used': false,
+            'created_at': FieldValue.serverTimestamp(),
+            'expires_at': Timestamp.fromDate(
+              DateTime.now().add(Duration(hours: 24)),
+            ),
+            'donationId': _lastDonationId,
+            'donorId': _lastDonorId,
+            'receiverId': _currentUserId,
+          });
+
+      debugPrint("Transaction created: ${transactionRef.id}");
+    } catch (e) {
+      debugPrint("Error creating transaction: $e");
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Payment Successful! Item Reserved.")),
     );
+  }
+
+  String _generatePickupCode() {
+    return (1000 + (DateTime.now().millisecondsSinceEpoch % 9000)).toString();
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
@@ -133,6 +175,20 @@ class RazorpayService {
     required Map<String, dynamic> donation,
     required dynamic user,
   }) {
+    // Store donation data for transaction creation on payment success
+    _lastOrderId = orderId;
+    _lastDonationId =
+        donation['id']?.toString() ?? donation['donationId']?.toString() ?? '';
+    _lastDonorId =
+        donation['donorId']?.toString() ?? donation['userId']?.toString() ?? '';
+    _currentUserId = user.uid?.toString() ?? '';
+
+    debugPrint("Stored donation data for transaction:");
+    debugPrint("  - donationId: $_lastDonationId");
+    debugPrint("  - donorId: $_lastDonorId");
+    debugPrint("  - userId: $_currentUserId");
+    debugPrint("  - orderId: $_lastOrderId");
+
     var options = {
       'key': razorpayKey,
       'amount': amount,

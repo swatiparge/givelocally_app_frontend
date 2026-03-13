@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 
 const bool _kDebugLogging = false;
@@ -88,6 +89,16 @@ class ApiService {
   static const Duration _debounceDelay = Duration(milliseconds: 500);
   static const int _cachePrecision = 2; // ~1.1km precision
   static const int _cacheTtlMinutes = 10;
+
+  /// Helper to get App Check token for raw HTTP requests
+  Future<String?> _getAppCheckToken() async {
+    try {
+      return await FirebaseAppCheck.instance.getToken();
+    } catch (e) {
+      debugPrint("API_SERVICE: Failed to get App Check token: $e");
+      return null;
+    }
+  }
 
   Future<List<dynamic>> fetchNearbyDonations({
     required double lat,
@@ -249,10 +260,13 @@ class ApiService {
       final query = (searchQuery ?? "").toLowerCase().trim();
       debugPrint("API_SERVICE: Fuzzy Search START for query: '$query'");
 
+      final appCheckToken = await _getAppCheckToken();
+
       final response = await http.post(
         Uri.parse(_searchDonationsUrl),
         headers: {
           "Content-Type": "application/json",
+          "X-Firebase-AppCheck": appCheckToken ?? "",
           if (idToken != null) "Authorization": "Bearer $idToken",
         },
         body: jsonEncode({
@@ -321,10 +335,14 @@ class ApiService {
       debugPrint(
         "API_SERVICE: Network fetch START for $cacheKey with limit $limit",
       );
+      
+      final appCheckToken = await _getAppCheckToken();
+
       final response = await http.post(
         Uri.parse(_nearbyDonationsUrl),
         headers: {
           "Content-Type": "application/json",
+          "X-Firebase-AppCheck": appCheckToken ?? "",
           if (idToken != null) "Authorization": "Bearer $idToken",
         },
         body: jsonEncode({
@@ -375,6 +393,8 @@ class ApiService {
         return [];
       }
 
+      final appCheckToken = await _getAppCheckToken();
+
       debugPrint("API_SERVICE: getNotifications - Fetching from server...");
 
       // Add timeout to prevent hanging
@@ -383,6 +403,7 @@ class ApiService {
             Uri.parse(_notificationsUrl),
             headers: {
               "Content-Type": "application/json",
+              "X-Firebase-AppCheck": appCheckToken ?? "",
               "Authorization": "Bearer $idToken",
             },
             body: jsonEncode({"data": {}}),
@@ -432,10 +453,13 @@ class ApiService {
       }
 
       final idToken = await user.getIdToken();
+      final appCheckToken = await _getAppCheckToken();
+
       final response = await http.post(
         Uri.parse(_receivedItemsUrl),
         headers: {
           "Content-Type": "application/json",
+          "X-Firebase-AppCheck": appCheckToken ?? "",
           "Authorization": "Bearer $idToken",
         },
         body: jsonEncode({
@@ -556,11 +580,14 @@ class ApiService {
 
       _log('API_SERVICE: Request body = $requestBody');
 
+      final appCheckToken = await _getAppCheckToken();
+
       final response = await http
           .post(
             Uri.parse(_getChatMessagesUrl),
             headers: {
               "Content-Type": "application/json",
+              "X-Firebase-AppCheck": appCheckToken ?? "",
               "Authorization": "Bearer $idToken",
             },
             body: jsonEncode(requestBody),
@@ -612,11 +639,14 @@ class ApiService {
         return [];
       }
 
+      final appCheckToken = await _getAppCheckToken();
+
       final response = await http
           .post(
             Uri.parse(_getUserChatsUrl),
             headers: {
               "Content-Type": "application/json",
+              "X-Firebase-AppCheck": appCheckToken ?? "",
               "Authorization": "Bearer $idToken",
             },
             body: jsonEncode({
@@ -662,11 +692,14 @@ class ApiService {
         return false;
       }
 
+      final appCheckToken = await _getAppCheckToken();
+
       final response = await http
           .post(
             Uri.parse(_sendMessageUrl),
             headers: {
               "Content-Type": "application/json",
+              "X-Firebase-AppCheck": appCheckToken ?? "",
               "Authorization": "Bearer $idToken",
             },
             body: jsonEncode({
